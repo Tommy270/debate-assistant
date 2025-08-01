@@ -44,6 +44,7 @@ CREATE TABLE public.debates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
+    setup_id UUID REFERENCES public.debate_setups(id) ON DELETE SET NULL;
     debate_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

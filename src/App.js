@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-// REMOVED: AssemblyAI transcriber import
 
 // --- Custom Event Class to Mimic Threading Event ---
 // This remains useful for signaling the audio processing loop to stop.
@@ -224,7 +223,8 @@ const DebatePage = ({ user }) => {
             stopEventRef.current = new CustomEvent();
 
             // Establish WebSocket connection to Google
-            const socket = new WebSocket(`wss://speech.googleapis.com/v1/speech:streamingrecognize?token=${token}`);
+            // *** FIX: Use `access_token` as the query parameter name ***
+            const socket = new WebSocket(`wss://speech.googleapis.com/v1/speech:streamingrecognize?access_token=${token}`);
             socketRef.current = socket;
             
             socket.onopen = () => {
