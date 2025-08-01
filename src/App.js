@@ -223,8 +223,8 @@ const DebatePage = ({ user }) => {
             stopEventRef.current = new CustomEvent();
 
             // Establish WebSocket connection to Google
-            // *** FIX: Use `access_token` as the query parameter name ***
-            const socket = new WebSocket(`wss://speech.googleapis.com/v1/speech:streamingrecognize?access_token=${token}`);
+            // Use the v1p1beta1 endpoint which better supports this authentication flow
+            const socket = new WebSocket(`wss://speech.googleapis.com/v1p1beta1/speech:streamingrecognize?access_token=${token}`);
             socketRef.current = socket;
             
             socket.onopen = () => {
