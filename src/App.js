@@ -181,89 +181,91 @@ const DebatePage = ({ user }) => {
     }, [liveDebate]);
 
     // --- Updated Function to Start Transcription ---
-    const startTranscription = async (token) => {
-        if (!token) {
-            alert("A token is required to start transcription.");
-            return;
-        }
+    const startTranscription = async () => {
+  // Hardcode the known working token
+  const token = 'a6b3ad51f325eb700887c0a60c6d7c48e946247778ca18e38cad02b93487e670';
+  console.log('[DEBUG] Using hardcoded token:', token);
 
-        setIsRecording(true);
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioStreamRef.current = stream;
+  if (!token) {
+    console.error('[DEBUG] No token provided');
+    alert('A token is required to start transcription.');
+    return;
+  }
 
-            const context = new (window.AudioContext || window.webkitAudioContext)();
-            audioContextRef.current = context;
-            const sampleRate = context.sampleRate;
-            console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
+  setIsRecording(true);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioStreamRef.current = stream;
 
-            // Hardcode the valid token for testing
-            const hardcodedToken = 'a6b3ad51f325eb700887c0a60c6d7c48e946247778ca18e38cad02b93487e670';
-            console.log('[DEBUG] Using token:', token === hardcodedToken ? 'Hardcoded token' : 'Provided token', token);
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = context;
+    const sampleRate = context.sampleRate;
+    console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
-            transcriberRef.current = new StreamingTranscriber({
-                token: hardcodedToken, // Use hardcoded token for now
-                sampleRate: sampleRate,
-            });
+    transcriberRef.current = new StreamingTranscriber({
+      token,
+      sampleRate,
+    });
 
-            const transcriber = transcriberRef.current;
-            
-            // Enhanced WebSocket event listeners
-            transcriber.on('open', () => {
-                console.log('[DEBUG] AssemblyAI WebSocket opened');
-                isTranscriberOpenRef.current = true;
-            });
-            transcriber.on('close', (code, reason) => {
-                console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
-                isTranscriberOpenRef.current = false;
-            });
-            transcriber.on('error', (error) => {
-                console.error('[DEBUG] AssemblyAI WebSocket error:', error);
-            });
-            transcriber.on('transcript', (transcript) => {
-                console.log('[DEBUG] Transcript received:', transcript);
-                if (!transcript.text) return;
-                if (transcript.message_type === 'PartialTranscript') {
-                    setCurrentTranscript(transcript.text);
-                }
-                if (transcript.message_type === 'FinalTranscript') {
-                    console.log('[DEBUG] Final transcript:', transcript.text);
-                    setCurrentTranscript('');
-                    supabase.functions.invoke('transcription-service', {
-                        body: {
-                            debate_id: liveDebate.id,
-                            speaker: activeSpeaker,
-                            transcript: transcript.text,
-                            user_id: user.id
-                        }
-                    }).catch(err => console.error("[DEBUG] Error invoking transcription-service:", err));
-                }
-            });
+    const transcriber = transcriberRef.current;
+    transcriber.on('open', () => {
+      console.log('[DEBUG] AssemblyAI WebSocket opened');
+      isTranscriberOpenRef.current = true;
+    });
+    transcriber.on('close', (code, reason) => {
+      console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
+      isTranscriberOpenRef.current = false;
+      if (code === 1008) {
+        console.error('[DEBUG] Invalid API key detected. Verify token.');
+        alert('Invalid API key. Please check your AssemblyAI token.');
+      }
+    });
+    transcriber.on('error', (error) => {
+      console.error('[DEBUG] AssemblyAI WebSocket error:', error);
+      alert(`Transcription error: ${error.message}`);
+    });
+    transcriber.on('transcript', (transcript) => {
+      console.log('[DEBUG] Transcript received:', transcript);
+      if (!transcript.text) return;
+      if (transcript.message_type === 'PartialTranscript') {
+        setCurrentTranscript(transcript.text);
+      }
+      if (transcript.message_type === 'FinalTranscript') {
+        console.log('[DEBUG] Final transcript:', transcript.text);
+        setCurrentTranscript('');
+        supabase.functions.invoke('transcription-service', {
+          body: {
+            debate_id: liveDebate.id,
+            speaker: activeSpeaker,
+            transcript: transcript.text,
+            user_id: user.id,
+          },
+        }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+      }
+    });
 
-            await transcriber.connect();
-            console.log('[DEBUG] WebSocket connection initiated');
+    await transcriber.connect();
+    console.log('[DEBUG] WebSocket connection initiated');
 
-            const source = context.createMediaStreamSource(stream);
-            const processor = context.createScriptProcessor(4096, 1, 1);
-            audioProcessorRef.current = processor;
+    const source = context.createMediaStreamSource(stream);
+    const processor = context.createScriptProcessor(4096, 1, 1);
+    audioProcessorRef.current = processor;
 
-            processor.onaudioprocess = (e) => {
-                if (isTranscriberOpenRef.current) {
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    transcriber.sendAudio(inputData);
-                }
-            };
-            
-            source.connect(processor);
-            processor.connect(context.destination);
-
-        } catch (err) {
-            console.error("[DEBUG] Error starting transcription:", err);
-            alert(`Error starting transcription: ${err.message}`);
-            stopTranscription();
-        }
+    processor.onaudioprocess = (e) => {
+      if (isTranscriberOpenRef.current) {
+        const inputData = e.inputBuffer.getChannelData(0);
+        transcriber.sendAudio(inputData);
+      }
     };
 
+    source.connect(processor);
+    processor.connect(context.destination);
+  } catch (err) {
+    console.error('[DEBUG] Error starting transcription:', err);
+    alert(`Error starting transcription: ${err.message}`);
+    stopTranscription();
+  }
+};
     // --- Function to Stop Transcription ---
     const stopTranscription = async () => {
         if (transcriberRef.current && isTranscriberOpenRef.current) {
@@ -285,18 +287,13 @@ const DebatePage = ({ user }) => {
     };
 
     const handleAutomaticStart = async () => {
-        try {
-            const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
-            if (error || !data.token) {
-                throw new Error(`Failed to get AssemblyAI token: ${error?.message || 'No token returned'}`);
-            }
-            console.log('[DEBUG] Received token from Supabase function:', data.token);
-            await startTranscription(data.token);
-        } catch (err) {
-            console.error('[DEBUG] Error in handleAutomaticStart:', err);
-            alert(err.message);
-        }
-    };
+  try {
+    await startTranscription();
+  } catch (err) {
+    console.error('[DEBUG] Error in handleAutomaticStart:', err);
+    alert(err.message);
+  }
+};
 
     const handleManualStart = async () => {
         if (!manualToken) {
