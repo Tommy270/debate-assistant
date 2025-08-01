@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { StreamingTranscriber } from 'assemblyai';
+// REMOVED: AssemblyAI transcriber import
 
 // --- Custom Event Class to Mimic Threading Event ---
+// This remains useful for signaling the audio processing loop to stop.
 class CustomEvent {
     constructor() {
         this._isSet = false;
@@ -14,6 +15,7 @@ class CustomEvent {
         return this._isSet;
     }
 }
+
 
 // --- Icon Components (Unchanged) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
@@ -124,6 +126,7 @@ const App = () => {
     );
 };
 
+
 // --- DebatePage Component ---
 const DebatePage = ({ user }) => {
     const [pageState, setPageState] = useState('setup');
@@ -141,21 +144,29 @@ const DebatePage = ({ user }) => {
     const [debateTitle, setDebateTitle] = useState(`New Debate ${new Date().toLocaleDateString()}`);
     const [isRecording, setIsRecording] = useState(false);
     const [isFetchingToken, setIsFetchingToken] = useState(false);
-    const [currentTranscript, setCurrentTranscript] = useState('');
-    const transcriberRef = useRef(null);
+    const [interimTranscript, setInterimTranscript] = useState('');
+    
+    // Google Speech-to-Text refs
+    const socketRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioProcessorRef = useRef(null);
     const audioStreamRef = useRef(null);
-    const isTranscriberOpenRef = useRef(false);
     const stopEventRef = useRef(null);
+    const speakerTagMapRef = useRef({}); // Maps Google's integer tag to 'user' or 'opponent'
+    
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
-    const [manualToken, setManualToken] = useState('');
 
-    // --- Fetch Token from Supabase Edge Function ---
+    // --- Fetch Google Cloud Token from Supabase Edge Function ---
     const fetchToken = async () => {
-        const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
-        if (error) throw new Error(`Failed to fetch token: ${error.message}`);
-        return data.token;
+        setIsFetchingToken(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('get-google-token');
+            if (error) throw new Error(`Failed to fetch Google token: ${error.message}`);
+            if (!data.token) throw new Error("Token not found in response from Edge Function.");
+            return data.token;
+        } finally {
+            setIsFetchingToken(false);
+        }
     };
 
     useEffect(() => {
@@ -196,229 +207,163 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
-    // --- Token Refresh Mechanism ---
-    useEffect(() => {
-        let tokenRefreshInterval;
-        if (isRecording) {
-            tokenRefreshInterval = setInterval(async () => {
-                try {
-                    const newToken = await fetchToken();
-                    console.log('[DEBUG] Token refreshed:', newToken);
-                    // Note: AssemblyAI SDK may not support dynamic token updates; reconnect if necessary
-                    if (transcriberRef.current && isTranscriberOpenRef.current) {
-                        await transcriberRef.current.close();
-                        await startTranscription(newToken);
-                        console.log('[DEBUG] Reconnected with new token');
-                    }
-                } catch (err) {
-                    console.error('[DEBUG] Error refreshing token:', err);
-                    stopTranscription();
-                    alert('Failed to refresh token. Stopping transcription.');
-                }
-            }, 300000); // Refresh every 5 minutes (300 seconds)
-        }
-        return () => clearInterval(tokenRefreshInterval);
-    }, [isRecording]);
-
-    // --- Start Transcription ---
-    const startTranscription = async (tokenOverride = null) => {
-        let token = tokenOverride;
-        if (!token) {
-            try {
-                token = await fetchToken();
-                console.log('[DEBUG] Fetched token:', token);
-            } catch (err) {
-                console.error('[DEBUG] Error fetching token:', err);
-                alert('Failed to fetch transcription token.');
-                return;
-            }
-        }
-
-        if (!token) {
-            console.error('[DEBUG] No token provided');
-            alert('A token is required to start transcription.');
-            return;
-        }
-
+    const startTranscription = async () => {
+        if (isRecording) return;
         setIsRecording(true);
-        stopEventRef.current = new CustomEvent();
+        setInterimTranscript("Initializing...");
 
         try {
+            const token = await fetchToken();
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
 
-            const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            console.log('Audio context sample rate:', context.sampleRate);
-            audioContextRef.current = context;
-
-            const sampleRate = context.sampleRate;
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            const sampleRate = audioContextRef.current.sampleRate;
             console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
+            
+            stopEventRef.current = new CustomEvent();
 
-            transcriberRef.current = new StreamingTranscriber({
-                token,
-                sampleRate: 16000,
-                format_turns: true,
-                url: 'wss://streaming.assemblyai.com/v3/ws',
-            });
-
-            const transcriber = transcriberRef.current;
-
-            transcriber.on('open', ({ session_id }) => {
-                console.log('[DEBUG] AssemblyAI WebSocket opened with session ID:', session_id);
-                isTranscriberOpenRef.current = true;
-            });
-
-            transcriber.on('close', (code, reason) => {
-                console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
-                isTranscriberOpenRef.current = false;
-                let errorMessage = 'Transcription stopped unexpectedly.';
-                if (code === 1008) {
-                    errorMessage = 'Invalid API key or token. Please verify your AssemblyAI token and ensure your account supports Universal-Streaming.';
-                } else if (code === 1006) {
-                    errorMessage = 'Connection lost. Please check your internet connection and try again.';
-                }
-                alert(errorMessage);
-                stopEventRef.current.set();
-            });
-
-            transcriber.on('error', (error) => {
-                console.error('[DEBUG] AssemblyAI WebSocket error:', error.message, error.stack);
-                alert(`Transcription error: ${error.message}`);
-                stopEventRef.current.set();
-            });
-
-            transcriber.on('transcript', (message) => {
-                console.log('[DEBUG] Message received:', message);
-                if (message.type !== 'Turn' || !message.transcript) return;
-
-                if (!message.turn_is_formatted) {
-                    setCurrentTranscript(message.transcript);
-                } else {
-                    console.log('[DEBUG] Formatted turn transcript:', message.transcript);
-                    setCurrentTranscript('');
-                    supabase.functions.invoke('transcription-service', {
-                        body: {
-                            debate_id: liveDebate.id,
-                            speaker: activeSpeaker,
-                            transcript: message.transcript,
-                            user_id: user.id,
+            // Establish WebSocket connection to Google
+            const socket = new WebSocket(`wss://speech.googleapis.com/v1/speech:streamingrecognize?token=${token}`);
+            socketRef.current = socket;
+            
+            socket.onopen = () => {
+                console.log('[Google] WebSocket opened.');
+                // Send configuration message
+                const configMessage = {
+                    streaming_config: {
+                        config: {
+                            encoding: 'LINEAR16',
+                            sample_rate_hertz: sampleRate,
+                            language_code: 'en-US',
+                            enable_automatic_punctuation: true,
+                            enable_speaker_diarization: true,
+                            diarization_speaker_count: 2, // Key for debate app
                         },
-                    }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
-                }
-            });
+                        interim_results: true,
+                    },
+                };
+                socket.send(JSON.stringify(configMessage));
+                setInterimTranscript("Listening...");
 
-            transcriber.on('begin', (message) => {
-                console.log('[DEBUG] Session began:', message);
-            });
+                // Start processing audio
+                const source = audioContextRef.current.createMediaStreamSource(stream);
+                // The buffer size can be adjusted for latency. 4096 is a common value.
+                const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+                audioProcessorRef.current = processor;
 
-            transcriber.on('termination', (message) => {
-                console.log('[DEBUG] Session terminated:', message);
-                stopEventRef.current.set();
-            });
-
-            await transcriber.connect();
-            console.log('[DEBUG] WebSocket connection initiated');
-
-            const source = context.createMediaStreamSource(stream);
-            const processor = context.createScriptProcessor(4096, 1, 1);
-            audioProcessorRef.current = processor;
-
-            processor.onaudioprocess = (e) => {
-                if (isTranscriberOpenRef.current && !stopEventRef.current.isSet()) {
+                processor.onaudioprocess = (e) => {
+                    if (socket.readyState !== 1 || stopEventRef.current.isSet()) return;
+                    
                     const inputData = e.inputBuffer.getChannelData(0);
-                    transcriber.sendAudio(inputData);
-                }
+                    const downsampledBuffer = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        downsampledBuffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                    }
+                    socket.send(downsampledBuffer.buffer);
+                };
+                source.connect(processor);
+                processor.connect(audioContextRef.current.destination);
             };
 
-            source.connect(processor);
-            processor.connect(context.destination);
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    console.error("[Google] Error message from API:", data.error);
+                    alert(`Google API Error: ${data.error.message}. Please check console.`);
+                    stopTranscription();
+                    return;
+                }
+                
+                if (data.results && data.results.length > 0) {
+                    const result = data.results[0];
+                    if (result.alternatives && result.alternatives.length > 0) {
+                        const transcript = result.alternatives[0].transcript;
+                        if (result.is_final) {
+                            setInterimTranscript(""); // Clear interim
+                            const wordsInfo = result.alternatives[0].words;
+                            const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag; // Get tag from last word
+
+                            if (!speakerTagMapRef.current[speakerTag]) {
+                                // First time we see this tag, assign it to the currently active speaker
+                                speakerTagMapRef.current[speakerTag] = activeSpeaker;
+                            }
+                            const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
+
+                            console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
+                            
+                            supabase.functions.invoke('transcription-service', {
+                                body: {
+                                    debate_id: liveDebate.id,
+                                    speaker: identifiedSpeaker,
+                                    transcript: transcript.trim(),
+                                    user_id: user.id,
+                                },
+                            }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+
+                        } else {
+                            setInterimTranscript(transcript);
+                        }
+                    }
+                }
+            };
+            
+            socket.onclose = (event) => {
+                console.log(`[Google] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                if (isRecording) stopTranscription(); // Clean up if closed unexpectedly
+            };
+
+            socket.onerror = (error) => {
+                console.error('[Google] WebSocket error:', error);
+                alert("A WebSocket error occurred. See console for details.");
+                stopTranscription();
+            };
+
         } catch (err) {
-            console.error('[DEBUG] Error starting transcription:', err);
+            console.error('[FATAL] Error starting transcription:', err);
             alert(`Error starting transcription: ${err.message}`);
             stopTranscription();
         }
     };
 
-    // --- Stop Transcription ---
     const stopTranscription = async () => {
-        try {
-            if (transcriberRef.current && isTranscriberOpenRef.current) {
-                await transcriberRef.current.send({ type: 'Terminate' });
-                console.log('[DEBUG] Sent termination message');
-                await transcriberRef.current.close();
-                console.log('[DEBUG] WebSocket connection closed');
-            }
+        if (!isRecording) return;
+        console.log("[INFO] Stopping transcription...");
 
-            if (audioProcessorRef.current) {
-                audioProcessorRef.current.disconnect();
-                audioProcessorRef.current = null;
-            }
-
-            if (audioContextRef.current) {
-                await audioContextRef.current.close();
-                audioContextRef.current = null;
-            }
-
-            if (audioStreamRef.current) {
-                audioStreamRef.current.getTracks().forEach(track => track.stop());
-                audioStreamRef.current = null;
-            }
-
-            if (stopEventRef.current) {
-                stopEventRef.current.set();
-                stopEventRef.current = null;
-            }
-
-            transcriberRef.current = null;
-            isTranscriberOpenRef.current = false;
-        } catch (err) {
-            console.error('[DEBUG] Error stopping transcription:', err);
-        } finally {
-            setIsRecording(false);
-            setCurrentTranscript('');
+        if (stopEventRef.current) stopEventRef.current.set();
+        
+        if (socketRef.current && socketRef.current.readyState === 1) {
+            socketRef.current.send(JSON.stringify({ type: 'final_result_request' })); // Send a final request
+            socketRef.current.close();
+            socketRef.current = null;
         }
+
+        if (audioProcessorRef.current) {
+            audioProcessorRef.current.disconnect();
+            audioProcessorRef.current = null;
+        }
+        
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            await audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+
+        if (audioStreamRef.current) {
+            audioStreamRef.current.getTracks().forEach(track => track.stop());
+            audioStreamRef.current = null;
+        }
+
+        // Reset state
+        setIsRecording(false);
+        setInterimTranscript('');
+        speakerTagMapRef.current = {}; // Reset speaker mapping for next session
     };
-
-    // --- Handle Automatic Start ---
-    const handleAutomaticStart = async () => {
-        setIsFetchingToken(true);
-        try {
-            await startTranscription();
-        } catch (err) {
-            console.error('[DEBUG] Error in handleAutomaticStart:', err);
-            alert(err.message);
-        } finally {
-            setIsFetchingToken(false);
-        }
-    };
-
-    // --- Handle Manual Start with Token Validation ---
-    const handleManualStart = async () => {
-        if (!manualToken.trim()) {
-            alert('Please paste a valid temporary token from AssemblyAI.');
-            return;
-        }
-        if (!manualToken.startsWith('AQ')) { // Basic JWT prefix check
-            alert('Invalid token format. Please ensure you copied the correct token.');
-            return;
-        }
-        console.log('[DEBUG] Attempting to use manual token:', manualToken);
-        setIsFetchingToken(true);
-        try {
-            await startTranscription(manualToken);
-        } catch (err) {
-            console.error('[DEBUG] Error in handleManualStart:', err);
-            alert(err.message);
-        } finally {
-            setIsFetchingToken(false);
-        }
-    };
-
+    
     const toggleRecording = () => {
         if (isRecording) {
             stopTranscription();
         } else {
-            handleAutomaticStart();
+            startTranscription();
         }
     };
 
@@ -518,17 +463,20 @@ const DebatePage = ({ user }) => {
                     </button>
                     <button onClick={handleStopDebate} className="p-3 rounded-full text-white bg-gray-700 hover:bg-gray-800 shadow-lg text-sm font-bold">End Debate</button>
                 </div>
+                
                 <div className="border-t pt-4 mt-4">
-                    <label className="text-sm font-bold text-gray-600 block mb-1">Manual Token Test</label>
-                    <textarea value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Paste temporary token here" className="w-full p-2 border rounded-md text-xs" rows="3"></textarea>
-                    <button onClick={handleManualStart} disabled={isRecording || isFetchingToken} className="w-full mt-2 bg-yellow-500 text-white font-bold py-2 rounded-md hover:bg-yellow-600 disabled:bg-gray-400">
-                        {isFetchingToken ? 'Fetching Token...' : 'Start with Manual Token'}
-                    </button>
+                    <p className="text-sm font-bold text-gray-600 block mb-2 text-center">Live Transcription Status</p>
+                     <div className="text-center my-2 p-3 bg-gray-100 rounded-md min-h-[60px] flex items-center justify-center">
+                        <p className="font-mono text-gray-700 text-sm">
+                            {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
+                        </p>
+                    </div>
+                    <p className="text-xs text-gray-500 text-center">
+                        Powered by Google Speech-to-Text. Diarization is active.
+                    </p>
                 </div>
-                <div className="text-center my-4 p-2 bg-gray-100 rounded-md min-h-[50px]">
-                    <p className="font-mono text-gray-600">{currentTranscript || (isRecording ? "Listening..." : "Recording Paused")}</p>
-                </div>
-                <div className="flex-grow overflow-y-auto">
+
+                <div className="flex-grow overflow-y-auto mt-4">
                     {topics.length > 0 && ( <>
                         <h2 className="text-xl font-semibold mb-3">Live Topics</h2>
                         <ul>
@@ -544,6 +492,7 @@ const DebatePage = ({ user }) => {
                         <button onClick={() => setActiveSpeaker('user')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>My Analysis & Coaching</button>
                         <button onClick={() => setActiveSpeaker('opponent')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'opponent' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Opponent's Analysis</button>
                     </div>
+                     <p className="text-xs text-center text-gray-500 pt-1">Assign speaker before they talk. The first utterance maps the speaker.</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
                         <FilterButton label="Full Feed" filter="all" active={activeFilter} setter={setActiveFilter} />
                         <FilterButton label="Fact Checks" filter="fact-check" active={activeFilter} setter={setActiveFilter} />
@@ -566,7 +515,10 @@ const DebatePage = ({ user }) => {
     );
 };
 
+
 // --- Other Components (Unchanged) ---
+// The following components did not require any changes. They are included for completeness.
+
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
