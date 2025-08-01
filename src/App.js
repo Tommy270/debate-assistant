@@ -1,21 +1,19 @@
 // src/App.js
 import React, { useState, useEffect, useRef } from 'react';
-// These imports are assumed to be configured correctly in your project.
-// You would need to create 'supabaseClient.js' and install 'assemblyai'.
 import { supabase } from './supabaseClient';
-// FIX: Switched from the legacy 'RealtimeTranscriber' to the current 'StreamingTranscriber'.
 import { StreamingTranscriber } from 'assemblyai';
 
-// --- Icon Components (No changes needed here) ---
+// --- Icon Components (No changes needed here, but fixed HomeIcon path data) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
-const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174-.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
+const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
 const ArrowUpIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
 const SparklesIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM18 13.5l.375 1.5L18 16.5l-.375-1.5-.375-1.5.375-1.5.375 1.5z" /></svg>;
 const ShieldCheckIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
 const HandIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15l3-3m0 0l-3-3m3 3h-7.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const UserCircleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-const HomeIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0.621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>;
+// FIX: Corrected the path data for the HomeIcon to prevent SVG errors.
+const HomeIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>;
 const ArrowLeftIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>;
 const ExclamationTriangleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
 const MagnifyingGlassIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
@@ -26,6 +24,7 @@ const StarIcon = ({ className }) => <svg className={className} xmlns="http://www
 
 // --- Main App Component ---
 const App = () => {
+    // ... (no changes in this part of the component)
     const [session, setSession] = useState(null);
     const [currentPage, setCurrentPage] = useState('debate');
     const [selectedDebate, setSelectedDebate] = useState(null);
@@ -117,6 +116,7 @@ const App = () => {
 
 // --- DebatePage Component ---
 const DebatePage = ({ user }) => {
+    // ... (no changes to state variables)
     const [pageState, setPageState] = useState('setup'); // 'setup', 'live'
     const [setups, setSetups] = useState([]);
     const [selectedSetupId, setSelectedSetupId] = useState('quick_start');
@@ -130,19 +130,16 @@ const DebatePage = ({ user }) => {
     const [isLoadingSetups, setIsLoadingSetups] = useState(true);
     const [showSetups, setShowSetups] = useState(false);
     const [debateTitle, setDebateTitle] = useState(`New Debate ${new Date().toLocaleDateString()}`);
-    
-    // State for real-time transcription
     const [isRecording, setIsRecording] = useState(false);
     const [currentTranscript, setCurrentTranscript] = useState('');
     const transcriberRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioProcessorRef = useRef(null);
     const audioStreamRef = useRef(null);
-    // FIX: Use a ref to track the WebSocket connection state based on events.
     const isTranscriberOpenRef = useRef(false);
-
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
+    // ... (no changes to useEffect hooks)
     useEffect(() => {
         if (pageState === 'setup') {
             const fetchSetups = async () => {
@@ -189,10 +186,9 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
-    // This function is updated to use the modern AssemblyAI SDK and correct state handling.
+
     const toggleRecording = async () => {
         if (isRecording) {
-            // Stop the transcriber and clean up all audio resources
             if (transcriberRef.current && isTranscriberOpenRef.current) {
                 await transcriberRef.current.close();
                 transcriberRef.current = null;
@@ -210,7 +206,6 @@ const DebatePage = ({ user }) => {
                 audioStreamRef.current.getTracks().forEach(track => track.stop());
                 audioStreamRef.current = null;
             }
-            
             setIsRecording(false);
             setCurrentTranscript('');
         } else {
@@ -218,38 +213,38 @@ const DebatePage = ({ user }) => {
             try {
                 // 1. Get temporary token from Supabase function
                 const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
+                
                 if (error || !data.token) {
                     throw new Error(`Failed to get AssemblyAI token: ${error?.message || 'No token returned'}`);
                 }
 
-                // 2. Get microphone stream
+                // --- NEW DEBUGGING LOG ---
+                // Log the token as soon as the React app receives it.
+                console.log('[DEBUG] Received token from Supabase function:', data.token);
+                // --- END NEW DEBUGGING LOG ---
+
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioStreamRef.current = stream;
 
-                // 3. Setup AudioContext and ScriptProcessorNode for raw audio
-                // NOTE: ScriptProcessorNode is deprecated but used here for simplicity.
-                // For production, migrating to AudioWorkletNode is recommended.
                 const context = new (window.AudioContext || window.webkitAudioContext)();
                 audioContextRef.current = context;
                 const sampleRate = context.sampleRate;
                 console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
-                // 4. Instantiate the StreamingTranscriber with the correct sample rate
                 transcriberRef.current = new StreamingTranscriber({
-                    token: data.token,
+                    token: data.token, // Use the received token
                     sampleRate: sampleRate,
                 });
 
                 const transcriber = transcriberRef.current;
                 
-                // 5. Set up event listeners for the transcriber
                 transcriber.on('open', () => {
                     console.log('AssemblyAI WebSocket opened.');
-                    isTranscriberOpenRef.current = true; // FIX: Update connection state
+                    isTranscriberOpenRef.current = true;
                 });
                 transcriber.on('close', (code, reason) => {
                     console.log('AssemblyAI WebSocket closed.', code, reason);
-                    isTranscriberOpenRef.current = false; // FIX: Update connection state
+                    isTranscriberOpenRef.current = false;
                 });
                 transcriber.on('error', (error) => console.error('AssemblyAI error:', error));
 
@@ -272,32 +267,25 @@ const DebatePage = ({ user }) => {
                     }
                 });
 
-                // 6. Connect to the WebSocket server
                 await transcriber.connect();
 
-                // 7. Start processing the raw audio stream
                 const source = context.createMediaStreamSource(stream);
-                // Use a buffer size of 4096, with 1 input channel and 1 output channel
                 const processor = context.createScriptProcessor(4096, 1, 1);
                 audioProcessorRef.current = processor;
 
                 processor.onaudioprocess = (e) => {
-                    // FIX: Check the connection state using the ref, not the removed getReadyState() method.
                     if (isTranscriberOpenRef.current) {
                         const inputData = e.inputBuffer.getChannelData(0);
-                        // Send the raw Float32Array data to the transcriber
                         transcriber.sendAudio(inputData);
                     }
                 };
                 
-                // The connection chain is required for the processor to start receiving audio data.
                 source.connect(processor);
                 processor.connect(context.destination);
 
             } catch (err) {
                 console.error("Error starting recording:", err);
                 alert(`Error starting recording: ${err.message}`);
-                // Clean up all resources on error
                 if (transcriberRef.current && isTranscriberOpenRef.current) { await transcriberRef.current.close(); }
                 if (audioContextRef.current) { await audioContextRef.current.close(); }
                 if (audioStreamRef.current) { audioStreamRef.current.getTracks().forEach(track => track.stop()); }
@@ -306,7 +294,8 @@ const DebatePage = ({ user }) => {
             }
         }
     };
-
+    
+    // ... (no changes to the rest of the file)
     const handleStartDebate = async () => {
         if (!selectedSetupId || !debateTitle.trim()) { alert("Please provide a title and select a setup."); return; }
         const selectedSetup = setups.find(s => s.id === selectedSetupId);
@@ -464,6 +453,7 @@ const DebatePage = ({ user }) => {
 };
 
 // --- Other Components (Setup, Profile, Analysis) ---
+// ... (No changes in these components)
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -712,7 +702,6 @@ const AnalysisPage = ({ debate, onBack }) => {
     );
 };
 
-// --- Minor & Card Components ---
 const SnapshotCard = ({ title, userScore, opponentScore }) => (<div className="bg-gray-100 p-4 rounded-lg"><h4 className="font-bold text-md h-12">{title}</h4><p className="text-3xl font-bold"><span className="text-blue-600">{userScore}</span><span className="text-lg text-gray-500 mx-1">vs</span><span className="text-red-600">{opponentScore}</span></p><p className="text-sm text-gray-600">(You vs Opponent)</p></div>);
 const AnalysisTabButton = ({ label, tabName, activeTab, setActiveTab }) => (<button onClick={() => setActiveTab(tabName)} className={`px-4 py-2 font-semibold text-sm ${activeTab === tabName ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}>{label}</button>);
 const TopicFilterButton = ({ label, topicId, selectedTopics, onToggle }) => { const isSelected = selectedTopics.includes(topicId); return (<button onClick={() => onToggle(topicId)} className={`px-3 py-1 text-sm rounded-full font-semibold transition-colors ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{label}</button>); };
