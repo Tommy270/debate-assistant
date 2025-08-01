@@ -196,10 +196,11 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            // Get the base URL for your Supabase functions
-            const supabaseUrl = new URL(supabase.functions.getURL(''));
-            // Construct the WebSocket URL for your new Edge Function
-            const wsUrl = `wss://${supabaseUrl.hostname}/functions/v1/speech-to-text-websocket`;
+            // *** FIX: Correctly construct the WebSocket URL ***
+            // 1. Get the full REST URL from the supabase client.
+            const restUrl = new URL(supabase.rest.url);
+            // 2. Construct the WebSocket URL using the hostname.
+            const wsUrl = `wss://${restUrl.hostname}/functions/v1/speech-to-text-websocket`;
             
             console.log(`[Proxy] Connecting to WebSocket at: ${wsUrl}`);
 
@@ -219,7 +220,6 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Proxy] WebSocket opened.');
                 // Send the configuration message TO YOUR PROXY.
-                // The proxy will forward this to Google as the first message on its own connection.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -249,7 +249,6 @@ const DebatePage = ({ user }) => {
                     for (let i = 0; i < inputData.length; i++) {
                         downsampledBuffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
                     }
-                    // Send raw audio TO YOUR PROXY
                     socket.send(downsampledBuffer.buffer);
                 };
                 source.connect(processor);
@@ -301,7 +300,7 @@ const DebatePage = ({ user }) => {
             
             socket.onclose = (event) => {
                 console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-                if (isRecording) stopTranscription(); // Clean up if closed unexpectedly
+                if (isRecording) stopTranscription();
             };
 
             socket.onerror = (error) => {
