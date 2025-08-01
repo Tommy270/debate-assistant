@@ -15,8 +15,7 @@ class CustomEvent {
     }
 }
 
-
-// --- Icon Components (Unchanged) ---
+// --- Icon Components ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
 const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
@@ -33,7 +32,7 @@ const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="http:
 const LightBulbIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.007z" clipRule="evenodd" /></svg>;
 
-// --- Main App Component (Unchanged) ---
+// --- Main App Component ---
 const App = () => {
     const [session, setSession] = useState(null);
     const [currentPage, setCurrentPage] = useState('debate');
@@ -125,7 +124,6 @@ const App = () => {
     );
 };
 
-
 // --- DebatePage Component ---
 const DebatePage = ({ user }) => {
     const [pageState, setPageState] = useState('setup');
@@ -142,31 +140,17 @@ const DebatePage = ({ user }) => {
     const [showSetups, setShowSetups] = useState(false);
     const [debateTitle, setDebateTitle] = useState(`New Debate ${new Date().toLocaleDateString()}`);
     const [isRecording, setIsRecording] = useState(false);
-    const [isFetchingToken, setIsFetchingToken] = useState(false);
     const [interimTranscript, setInterimTranscript] = useState('');
     
-    // Google Speech-to-Text refs
+    // Refs for audio processing and WebSocket
     const socketRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioProcessorRef = useRef(null);
     const audioStreamRef = useRef(null);
     const stopEventRef = useRef(null);
-    const speakerTagMapRef = useRef({}); // Maps Google's integer tag to 'user' or 'opponent'
+    const speakerTagMapRef = useRef({});
     
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
-
-    // --- Fetch Google Cloud Token from Supabase Edge Function ---
-    const fetchToken = async () => {
-        setIsFetchingToken(true);
-        try {
-            const { data, error } = await supabase.functions.invoke('get-google-token');
-            if (error) throw new Error(`Failed to fetch Google token: ${error.message}`);
-            if (!data.token) throw new Error("Token not found in response from Edge Function.");
-            return data.token;
-        } finally {
-            setIsFetchingToken(false);
-        }
-    };
 
     useEffect(() => {
         if (pageState === 'setup') {
@@ -212,7 +196,13 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            const token = await fetchToken();
+            // Get the base URL for your Supabase functions
+            const supabaseUrl = new URL(supabase.functions.getURL(''));
+            // Construct the WebSocket URL for your new Edge Function
+            const wsUrl = `wss://${supabaseUrl.hostname}/functions/v1/speech-to-text-websocket`;
+            
+            console.log(`[Proxy] Connecting to WebSocket at: ${wsUrl}`);
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
 
@@ -222,14 +212,14 @@ const DebatePage = ({ user }) => {
             
             stopEventRef.current = new CustomEvent();
 
-            // Establish WebSocket connection to Google
-            // Use the v1p1beta1 endpoint which better supports this authentication flow
-            const socket = new WebSocket(`wss://speech.googleapis.com/v1p1beta1/speech:streamingrecognize?access_token=${token}`);
+            // Establish WebSocket connection to YOUR PROXY FUNCTION
+            const socket = new WebSocket(wsUrl);
             socketRef.current = socket;
             
             socket.onopen = () => {
-                console.log('[Google] WebSocket opened.');
-                // Send configuration message
+                console.log('[Proxy] WebSocket opened.');
+                // Send the configuration message TO YOUR PROXY.
+                // The proxy will forward this to Google as the first message on its own connection.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -238,7 +228,7 @@ const DebatePage = ({ user }) => {
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
                             enable_speaker_diarization: true,
-                            diarization_speaker_count: 2, // Key for debate app
+                            diarization_speaker_count: 2,
                         },
                         interim_results: true,
                     },
@@ -248,7 +238,6 @@ const DebatePage = ({ user }) => {
 
                 // Start processing audio
                 const source = audioContextRef.current.createMediaStreamSource(stream);
-                // The buffer size can be adjusted for latency. 4096 is a common value.
                 const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
                 audioProcessorRef.current = processor;
 
@@ -260,6 +249,7 @@ const DebatePage = ({ user }) => {
                     for (let i = 0; i < inputData.length; i++) {
                         downsampledBuffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
                     }
+                    // Send raw audio TO YOUR PROXY
                     socket.send(downsampledBuffer.buffer);
                 };
                 source.connect(processor);
@@ -269,8 +259,8 @@ const DebatePage = ({ user }) => {
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.error) {
-                    console.error("[Google] Error message from API:", data.error);
-                    alert(`Google API Error: ${data.error.message}. Please check console.`);
+                    console.error("[Proxy] Error message from upstream:", data.error);
+                    alert(`Google API Error (via proxy): ${data.error.message}. Please check console.`);
                     stopTranscription();
                     return;
                 }
@@ -282,24 +272,25 @@ const DebatePage = ({ user }) => {
                         if (result.is_final) {
                             setInterimTranscript(""); // Clear interim
                             const wordsInfo = result.alternatives[0].words;
-                            const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag; // Get tag from last word
-
-                            if (!speakerTagMapRef.current[speakerTag]) {
-                                // First time we see this tag, assign it to the currently active speaker
-                                speakerTagMapRef.current[speakerTag] = activeSpeaker;
+                            if (wordsInfo && wordsInfo.length > 0) {
+                                const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag;
+    
+                                if (!speakerTagMapRef.current[speakerTag]) {
+                                    speakerTagMapRef.current[speakerTag] = activeSpeaker;
+                                }
+                                const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
+    
+                                console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
+                                
+                                supabase.functions.invoke('transcription-service', {
+                                    body: {
+                                        debate_id: liveDebate.id,
+                                        speaker: identifiedSpeaker,
+                                        transcript: transcript.trim(),
+                                        user_id: user.id,
+                                    },
+                                }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                             }
-                            const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
-
-                            console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
-                            
-                            supabase.functions.invoke('transcription-service', {
-                                body: {
-                                    debate_id: liveDebate.id,
-                                    speaker: identifiedSpeaker,
-                                    transcript: transcript.trim(),
-                                    user_id: user.id,
-                                },
-                            }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
 
                         } else {
                             setInterimTranscript(transcript);
@@ -309,13 +300,13 @@ const DebatePage = ({ user }) => {
             };
             
             socket.onclose = (event) => {
-                console.log(`[Google] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
                 if (isRecording) stopTranscription(); // Clean up if closed unexpectedly
             };
 
             socket.onerror = (error) => {
-                console.error('[Google] WebSocket error:', error);
-                alert("A WebSocket error occurred. See console for details.");
+                console.error('[Proxy] WebSocket error:', error);
+                alert("A WebSocket error occurred with the proxy service. See console for details.");
                 stopTranscription();
             };
 
@@ -333,7 +324,6 @@ const DebatePage = ({ user }) => {
         if (stopEventRef.current) stopEventRef.current.set();
         
         if (socketRef.current && socketRef.current.readyState === 1) {
-            socketRef.current.send(JSON.stringify({ type: 'final_result_request' })); // Send a final request
             socketRef.current.close();
             socketRef.current = null;
         }
@@ -353,10 +343,9 @@ const DebatePage = ({ user }) => {
             audioStreamRef.current = null;
         }
 
-        // Reset state
         setIsRecording(false);
         setInterimTranscript('');
-        speakerTagMapRef.current = {}; // Reset speaker mapping for next session
+        speakerTagMapRef.current = {};
     };
     
     const toggleRecording = () => {
@@ -458,7 +447,7 @@ const DebatePage = ({ user }) => {
         <div className="flex flex-col md:flex-row h-full font-sans text-gray-800">
             <div className="w-full md:w-1/3 lg:w-1/4 p-4 flex flex-col bg-white shadow-md">
                 <div className="flex justify-around items-center mb-6">
-                    <button onClick={toggleRecording} disabled={isFetchingToken} className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'} disabled:bg-gray-400`}>
+                    <button onClick={toggleRecording} className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'} disabled:bg-gray-400`}>
                         {isRecording ? <StopIcon className="h-8 w-8" /> : <MicIcon className="h-8 w-8" />}
                     </button>
                     <button onClick={handleStopDebate} className="p-3 rounded-full text-white bg-gray-700 hover:bg-gray-800 shadow-lg text-sm font-bold">End Debate</button>
@@ -467,10 +456,10 @@ const DebatePage = ({ user }) => {
                 <div className="border-t pt-4 mt-4">
                     <p className="text-sm font-bold text-gray-600 block mb-2 text-center">Live Transcription Status</p>
                      <div className="text-center my-2 p-3 bg-gray-100 rounded-md min-h-[60px] flex items-center justify-center">
-                        <p className="font-mono text-gray-700 text-sm">
-                            {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
-                        </p>
-                    </div>
+                         <p className="font-mono text-gray-700 text-sm">
+                             {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
+                         </p>
+                     </div>
                     <p className="text-xs text-gray-500 text-center">
                         Powered by Google Speech-to-Text. Diarization is active.
                     </p>
@@ -515,10 +504,7 @@ const DebatePage = ({ user }) => {
     );
 };
 
-
-// --- Other Components (Unchanged) ---
-// The following components did not require any changes. They are included for completeness.
-
+// --- Other Components ---
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -757,7 +743,7 @@ const AnalysisPage = ({ debate, onBack }) => {
                 <div className="space-y-4"> {getFilteredAnalysis().map((item) => <UnifiedCard key={item.id} item={item} onClick={() => highlightTranscript(item.data.lineNumber)} />)} </div>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md"> <h3 className="text-2xl font-bold mb-4">Full Transcript</h3> <div className="overflow-y-auto max-h-96"> {transcriptLines.map(line => (<div key={line.line_number} id={`line-${line.line_number}`} className="text-sm text-gray-700 mb-1"><span className="font-mono text-gray-500 mr-2">{line.line_number}:</span> {line.text}</div>))} </div> </div>
-    </div>
+        </div>
     );
 };
 
@@ -766,6 +752,7 @@ const AnalysisTabButton = ({ label, tabName, activeTab, setActiveTab }) => (<but
 const TopicFilterButton = ({ label, topicId, selectedTopics, onToggle }) => { const isSelected = selectedTopics.includes(topicId); return (<button onClick={() => onToggle(topicId)} className={`px-3 py-1 text-sm rounded-full font-semibold transition-colors ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{label}</button>); };
 const DebateHistoryCard = ({ debate, onViewAnalysis }) => (<div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow"><h3 className="text-xl font-bold text-blue-600">{debate.title}</h3><p className="text-sm text-gray-500 mb-3">{new Date(debate.created_at).toLocaleDateString()}</p><div className="mb-4"><h4 className="font-semibold mb-2">Key Topics:</h4><div className="flex flex-wrap gap-2">{debate.topics.map(topic => (<span key={topic.id} className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm">{topic.title}</span>))}</div></div><button onClick={() => onViewAnalysis(debate)} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">View Analysis</button></div>);
 const FilterButton = ({ label, filter, active, setter }) => (<button onClick={() => setter(filter)} className={`px-2 py-1 text-xs sm:text-sm rounded-full font-semibold transition-colors w-full ${active === filter ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{label}</button>);
+
 const FactCheckSection = ({ factCheck }) => {
     if (!factCheck || !factCheck.claims || factCheck.claims.length === 0) return null;
     return (
@@ -791,6 +778,7 @@ const FactCheckSection = ({ factCheck }) => {
         </div>
     );
 };
+
 const CoachingSection = ({ coaching }) => {
     if (!coaching || Object.keys(coaching).length === 0) return null;
     const coachingInfo = {
@@ -815,6 +803,7 @@ const CoachingSection = ({ coaching }) => {
         </div>
     );
 };
+
 const UnifiedCard = ({ item, onClick }) => {
     const { card_type, data } = item;
     const cardStyles = {
