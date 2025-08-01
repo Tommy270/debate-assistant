@@ -15,7 +15,7 @@ class CustomEvent {
     }
 }
 
-// --- Icon Components (No changes) ---
+// --- Icon Components (Unchanged) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
 const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
@@ -32,7 +32,7 @@ const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="http:
 const LightBulbIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.007z" clipRule="evenodd" /></svg>;
 
-// --- Main App Component (No changes) ---
+// --- Main App Component (Unchanged) ---
 const App = () => {
     const [session, setSession] = useState(null);
     const [currentPage, setCurrentPage] = useState('debate');
@@ -140,6 +140,7 @@ const DebatePage = ({ user }) => {
     const [showSetups, setShowSetups] = useState(false);
     const [debateTitle, setDebateTitle] = useState(`New Debate ${new Date().toLocaleDateString()}`);
     const [isRecording, setIsRecording] = useState(false);
+    const [isFetchingToken, setIsFetchingToken] = useState(false); // New: Loading state for token fetch
     const [currentTranscript, setCurrentTranscript] = useState('');
     const transcriberRef = useRef(null);
     const audioContextRef = useRef(null);
@@ -148,9 +149,14 @@ const DebatePage = ({ user }) => {
     const isTranscriberOpenRef = useRef(false);
     const stopEventRef = useRef(null);
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
-
-    // --- State for Manual Token ---
     const [manualToken, setManualToken] = useState('');
+
+    // --- Fetch Token from Supabase Edge Function ---
+    const fetchToken = async () => {
+        const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
+        if (error) throw new Error(`Failed to fetch token: ${error.message}`);
+        return data.token;
+    };
 
     useEffect(() => {
         if (pageState === 'setup') {
@@ -190,11 +196,43 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
-    // --- Updated Function to Start Transcription ---
+    // --- Token Refresh Mechanism ---
+    useEffect(() => {
+        let tokenRefreshInterval;
+        if (isRecording) {
+            tokenRefreshInterval = setInterval(async () => {
+                try {
+                    const newToken = await fetchToken();
+                    console.log('[DEBUG] Token refreshed:', newToken);
+                    // Note: AssemblyAI SDK may not support dynamic token updates; reconnect if necessary
+                    if (transcriberRef.current && isTranscriberOpenRef.current) {
+                        await transcriberRef.current.close();
+                        await startTranscription(newToken);
+                        console.log('[DEBUG] Reconnected with new token');
+                    }
+                } catch (err) {
+                    console.error('[DEBUG] Error refreshing token:', err);
+                    stopTranscription();
+                    alert('Failed to refresh token. Stopping transcription.');
+                }
+            }, 300000); // Refresh every 5 minutes (300 seconds)
+        }
+        return () => clearInterval(tokenRefreshInterval);
+    }, [isRecording]);
+
+    // --- Start Transcription ---
     const startTranscription = async (tokenOverride = null) => {
-        // Use provided token or fallback to hardcoded (for testing, replace with server-generated token in production)
-        const token = tokenOverride || '29a1a195fa78b05e60e34ad47d3acbed4e592ecfc1eb423233f057d7017b1996';
-        console.log('[DEBUG] Using token:', token);
+        let token = tokenOverride;
+        if (!token) {
+            try {
+                token = await fetchToken();
+                console.log('[DEBUG] Fetched token:', token);
+            } catch (err) {
+                console.error('[DEBUG] Error fetching token:', err);
+                alert('Failed to fetch transcription token.');
+                return;
+            }
+        }
 
         if (!token) {
             console.error('[DEBUG] No token provided');
@@ -203,14 +241,14 @@ const DebatePage = ({ user }) => {
         }
 
         setIsRecording(true);
-        stopEventRef.current = new CustomEvent(); // Initialize custom stop event
+        stopEventRef.current = new CustomEvent();
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
 
             const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            console.log('Audio context sample rate:', context.sampleRate); // Verify it's 16000
+            console.log('Audio context sample rate:', context.sampleRate);
             audioContextRef.current = context;
 
             const sampleRate = context.sampleRate;
@@ -219,31 +257,34 @@ const DebatePage = ({ user }) => {
             transcriberRef.current = new StreamingTranscriber({
                 token,
                 sampleRate: 16000,
-                format_turns: true, // Enable formatted turns for Universal-Streaming
-                url: 'wss://streaming.assemblyai.com/v3/ws', // Universal-Streaming endpoint
+                format_turns: true,
+                url: 'wss://streaming.assemblyai.com/v3/ws',
             });
 
             const transcriber = transcriberRef.current;
 
-            transcriber.on('open', () => {
-                console.log('[DEBUG] AssemblyAI WebSocket opened');
+            transcriber.on('open', ({ session_id }) => {
+                console.log('[DEBUG] AssemblyAI WebSocket opened with session ID:', session_id);
                 isTranscriberOpenRef.current = true;
             });
 
             transcriber.on('close', (code, reason) => {
                 console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
                 isTranscriberOpenRef.current = false;
+                let errorMessage = 'Transcription stopped unexpectedly.';
                 if (code === 1008) {
-                    console.error('[DEBUG] Invalid API key detected. Verify token.');
-                    alert('Invalid API key. Please check your AssemblyAI token and ensure your account is upgraded for Universal-Streaming.');
+                    errorMessage = 'Invalid API key or token. Please verify your AssemblyAI token and ensure your account supports Universal-Streaming.';
+                } else if (code === 1006) {
+                    errorMessage = 'Connection lost. Please check your internet connection and try again.';
                 }
-                stopEventRef.current.set(); // Signal stop event on close
+                alert(errorMessage);
+                stopEventRef.current.set();
             });
 
             transcriber.on('error', (error) => {
-                console.error('[DEBUG] AssemblyAI WebSocket error:', error);
+                console.error('[DEBUG] AssemblyAI WebSocket error:', error.message, error.stack);
                 alert(`Transcription error: ${error.message}`);
-                stopEventRef.current.set(); // Signal stop event on error
+                stopEventRef.current.set();
             });
 
             transcriber.on('transcript', (message) => {
@@ -279,7 +320,7 @@ const DebatePage = ({ user }) => {
             console.log('[DEBUG] WebSocket connection initiated');
 
             const source = context.createMediaStreamSource(stream);
-            const processor = context.createScriptProcessor(800, 1, 1); // Reduced buffer size to 800 frames (50ms) for lower latency
+            const processor = context.createScriptProcessor(800, 1, 1);
             audioProcessorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
@@ -298,11 +339,11 @@ const DebatePage = ({ user }) => {
         }
     };
 
-    // --- Updated Function to Stop Transcription ---
+    // --- Stop Transcription ---
     const stopTranscription = async () => {
         try {
             if (transcriberRef.current && isTranscriberOpenRef.current) {
-                await transcriberRef.current.send({ type: 'Terminate' }); // Send termination message for Universal-Streaming
+                await transcriberRef.current.send({ type: 'Terminate' });
                 console.log('[DEBUG] Sent termination message');
                 await transcriberRef.current.close();
                 console.log('[DEBUG] WebSocket connection closed');
@@ -324,7 +365,7 @@ const DebatePage = ({ user }) => {
             }
 
             if (stopEventRef.current) {
-                stopEventRef.current.set(); // Signal stop event
+                stopEventRef.current.set();
                 stopEventRef.current = null;
             }
 
@@ -338,22 +379,39 @@ const DebatePage = ({ user }) => {
         }
     };
 
+    // --- Handle Automatic Start ---
     const handleAutomaticStart = async () => {
+        setIsFetchingToken(true);
         try {
             await startTranscription();
         } catch (err) {
             console.error('[DEBUG] Error in handleAutomaticStart:', err);
             alert(err.message);
+        } finally {
+            setIsFetchingToken(false);
         }
     };
 
+    // --- Handle Manual Start with Token Validation ---
     const handleManualStart = async () => {
-        if (!manualToken) {
-            alert("Please paste a temporary token from AssemblyAI.");
+        if (!manualToken.trim()) {
+            alert('Please paste a valid temporary token from AssemblyAI.');
+            return;
+        }
+        if (!manualToken.startsWith('AQ')) { // Basic JWT prefix check
+            alert('Invalid token format. Please ensure you copied the correct token.');
             return;
         }
         console.log('[DEBUG] Attempting to use manual token:', manualToken);
-        await startTranscription(manualToken);
+        setIsFetchingToken(true);
+        try {
+            await startTranscription(manualToken);
+        } catch (err) {
+            console.error('[DEBUG] Error in handleManualStart:', err);
+            alert(err.message);
+        } finally {
+            setIsFetchingToken(false);
+        }
     };
 
     const toggleRecording = () => {
@@ -455,7 +513,7 @@ const DebatePage = ({ user }) => {
         <div className="flex flex-col md:flex-row h-full font-sans text-gray-800">
             <div className="w-full md:w-1/3 lg:w-1/4 p-4 flex flex-col bg-white shadow-md">
                 <div className="flex justify-around items-center mb-6">
-                    <button onClick={toggleRecording} className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'}`}>
+                    <button onClick={toggleRecording} disabled={isFetchingToken} className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'} disabled:bg-gray-400`}>
                         {isRecording ? <StopIcon className="h-8 w-8" /> : <MicIcon className="h-8 w-8" />}
                     </button>
                     <button onClick={handleStopDebate} className="p-3 rounded-full text-white bg-gray-700 hover:bg-gray-800 shadow-lg text-sm font-bold">End Debate</button>
@@ -463,8 +521,8 @@ const DebatePage = ({ user }) => {
                 <div className="border-t pt-4 mt-4">
                     <label className="text-sm font-bold text-gray-600 block mb-1">Manual Token Test</label>
                     <textarea value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Paste temporary token here" className="w-full p-2 border rounded-md text-xs" rows="3"></textarea>
-                    <button onClick={handleManualStart} disabled={isRecording} className="w-full mt-2 bg-yellow-500 text-white font-bold py-2 rounded-md hover:bg-yellow-600 disabled:bg-gray-400">
-                        Start with Manual Token
+                    <button onClick={handleManualStart} disabled={isRecording || isFetchingToken} className="w-full mt-2 bg-yellow-500 text-white font-bold py-2 rounded-md hover:bg-yellow-600 disabled:bg-gray-400">
+                        {isFetchingToken ? 'Fetching Token...' : 'Start with Manual Token'}
                     </button>
                 </div>
                 <div className="text-center my-4 p-2 bg-gray-100 rounded-md min-h-[50px]">
@@ -508,7 +566,7 @@ const DebatePage = ({ user }) => {
     );
 };
 
-// --- Other Components (No changes) ---
+// --- Other Components (Unchanged) ---
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -747,7 +805,7 @@ const AnalysisPage = ({ debate, onBack }) => {
                 <div className="space-y-4"> {getFilteredAnalysis().map((item) => <UnifiedCard key={item.id} item={item} onClick={() => highlightTranscript(item.data.lineNumber)} />)} </div>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md"> <h3 className="text-2xl font-bold mb-4">Full Transcript</h3> <div className="overflow-y-auto max-h-96"> {transcriptLines.map(line => (<div key={line.line_number} id={`line-${line.line_number}`} className="text-sm text-gray-700 mb-1"><span className="font-mono text-gray-500 mr-2">{line.line_number}:</span> {line.text}</div>))} </div> </div>
-        </div>
+    </div>
     );
 };
 
