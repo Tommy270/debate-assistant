@@ -204,7 +204,7 @@ const DebatePage = ({ user }) => {
 
     transcriberRef.current = new StreamingTranscriber({
       token,
-      sampleRate,
+      sampleRate: 16000,
     });
 
     const transcriber = transcriberRef.current;
