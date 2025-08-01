@@ -35,7 +35,7 @@ const App = () => {
         setSelectedDebate(debate);
         setCurrentPage('analysis');
     };
-    
+
     const Auth = () => {
         const [loading, setLoading] = useState(false);
         const [email, setEmail] = useState('');
@@ -43,23 +43,24 @@ const App = () => {
         const [isSignUp, setIsSignUp] = useState(false);
 
         const handleSubmit = async (e) => {
-            e.preventDefault(); 
+            e.preventDefault();
             setLoading(true);
             try {
                 if (isSignUp) {
-                    const { error } = await supabase.auth.signUp({ email, password }); 
+                    const { error } = await supabase.auth.signUp({ email, password });
                     if (error) throw error;
                     alert('Sign up successful! Please check your email for a verification link.');
                 } else {
-                    const { error } = await supabase.auth.signInWithPassword({ email, password }); 
+                    const { error } = await supabase.auth.signInWithPassword({ email, password });
                     if (error) throw error;
                 }
-            } catch (error) { 
-                alert(error.error_description || error.message); 
-            } finally { 
-                setLoading(false); 
+            } catch (error) {
+                alert(error.error_description || error.message);
+            } finally {
+                setLoading(false);
             }
         };
+
         return (
             <div className="flex justify-center items-center h-screen bg-gray-50">
                 <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-xl">
@@ -132,8 +133,9 @@ const DebatePage = ({ user }) => {
     const audioProcessorRef = useRef(null);
     const audioStreamRef = useRef(null);
     const isTranscriberOpenRef = useRef(false);
+    const stopEventRef = useRef(null);
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
-    
+
     // --- State for Manual Token ---
     const [manualToken, setManualToken] = useState('');
 
@@ -142,7 +144,7 @@ const DebatePage = ({ user }) => {
             const fetchSetups = async () => {
                 setIsLoadingSetups(true);
                 const { data, error } = await supabase.from('debate_setups').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-                if (error) { console.error('Error fetching debate setups:', error); } 
+                if (error) { console.error('Error fetching debate setups:', error); }
                 else { setSetups([quickStartSetup, ...(data || [])]); }
                 setIsLoadingSetups(false);
             };
@@ -152,149 +154,185 @@ const DebatePage = ({ user }) => {
 
     useEffect(() => {
         if (!liveDebate) return;
-
         const fetchInitialData = async () => {
             const { data: topicsData, error: topicsError } = await supabase.from('topics').select('*').eq('debate_id', liveDebate.id);
             if (topicsError) console.error('Error fetching topics:', topicsError); else setTopics(topicsData || []);
-            
             const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text').eq('debate_id', liveDebate.id).order('line_number');
             if (transcriptError) console.error('Error fetching transcript lines:', transcriptError); else setTranscriptLines(transcriptData || []);
         };
         fetchInitialData();
-
         const handleCardChange = (payload) => {
             const newCard = payload.new;
             setLiveFeedItems(prevItems => {
                 const cardExists = prevItems.some(item => item.id === newCard.id);
-                if (cardExists) { return prevItems.map(item => item.id === newCard.id ? newCard : item); } 
+                if (cardExists) { return prevItems.map(item => item.id === newCard.id ? newCard : item); }
                 else { return [...prevItems, newCard]; }
             });
         };
-
         const analysisSubscription = supabase.channel(`analysis_cards_for_${liveDebate.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'analysis_cards', filter: `debate_id=eq.${liveDebate.id}` }, handleCardChange).subscribe();
         const topicSubscription = supabase.channel(`topics_for_${liveDebate.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'topics', filter: `debate_id=eq.${liveDebate.id}` }, fetchInitialData).subscribe();
         const transcriptSubscription = supabase.channel(`transcript_lines_for_${liveDebate.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transcript_lines', filter: `debate_id=eq.${liveDebate.id}` }, (payload) => {
-             setTranscriptLines(currentLines => [...currentLines, payload.new].sort((a, b) => a.line_number - b.line_number));
+            setTranscriptLines(currentLines => [...currentLines, payload.new].sort((a, b) => a.line_number - b.line_number));
         }).subscribe();
-
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
     // --- Updated Function to Start Transcription ---
-    const startTranscription = async () => {
-  // Hardcode the known working token
-  const token = '29a1a195fa78b05e60e34ad47d3acbed4e592ecfc1eb423233f057d7017b1996';
-  console.log('[DEBUG] Using hardcoded token:', token);
+    const startTranscription = async (tokenOverride = null) => {
+        // Use provided token or fallback to hardcoded (for testing, replace with server-generated token in production)
+        const token = tokenOverride || '29a1a195fa78b05e60e34ad47d3acbed4e592ecfc1eb423233f057d7017b1996';
+        console.log('[DEBUG] Using token:', token);
 
-  if (!token) {
-    console.error('[DEBUG] No token provided');
-    alert('A token is required to start transcription.');
-    return;
-  }
+        if (!token) {
+            console.error('[DEBUG] No token provided');
+            alert('A token is required to start transcription.');
+            return;
+        }
 
-  setIsRecording(true);
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioStreamRef.current = stream;
+        setIsRecording(true);
+        stopEventRef.current = new Event(); // Initialize stop event for thread control
 
-    const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    console.log('Audio context sample rate:', context.sampleRate); // Verify it's 16000
-    audioContextRef.current = context;
-    const sampleRate = context.sampleRate;
-    console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStreamRef.current = stream;
 
-    transcriberRef.current = new StreamingTranscriber({
-      token,
-      sampleRate: 16000,
-    });
+            const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            console.log('Audio context sample rate:', context.sampleRate); // Verify it's 16000
+            audioContextRef.current = context;
 
-    const transcriber = transcriberRef.current;
-    transcriber.on('open', () => {
-      console.log('[DEBUG] AssemblyAI WebSocket opened');
-      isTranscriberOpenRef.current = true;
-    });
-    transcriber.on('close', (code, reason) => {
-      console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
-      isTranscriberOpenRef.current = false;
-      if (code === 1008) {
-        console.error('[DEBUG] Invalid API key detected. Verify token.');
-        alert('Invalid API key. Please check your AssemblyAI token.');
-      }
-    });
-    transcriber.on('error', (error) => {
-      console.error('[DEBUG] AssemblyAI WebSocket error:', error);
-      alert(`Transcription error: ${error.message}`);
-    });
-    transcriber.on('transcript', (transcript) => {
-      console.log('[DEBUG] Transcript received:', transcript);
-      if (!transcript.text) return;
-      if (transcript.message_type === 'PartialTranscript') {
-        setCurrentTranscript(transcript.text);
-      }
-      if (transcript.message_type === 'FinalTranscript') {
-        console.log('[DEBUG] Final transcript:', transcript.text);
-        setCurrentTranscript('');
-        supabase.functions.invoke('transcription-service', {
-          body: {
-            debate_id: liveDebate.id,
-            speaker: activeSpeaker,
-            transcript: transcript.text,
-            user_id: user.id,
-          },
-        }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
-      }
-    });
+            const sampleRate = context.sampleRate;
+            console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
-    await transcriber.connect();
-    console.log('[DEBUG] WebSocket connection initiated');
+            transcriberRef.current = new StreamingTranscriber({
+                token,
+                sampleRate: 16000,
+                format_turns: true, // Enable formatted turns for Universal-Streaming
+                url: 'wss://streaming.assemblyai.com/v3/ws', // Universal-Streaming endpoint
+            });
 
-    const source = context.createMediaStreamSource(stream);
-    const processor = context.createScriptProcessor(4096, 1, 1);
-    audioProcessorRef.current = processor;
+            const transcriber = transcriberRef.current;
 
-    processor.onaudioprocess = (e) => {
-      if (isTranscriberOpenRef.current) {
-        const inputData = e.inputBuffer.getChannelData(0);
-        transcriber.sendAudio(inputData);
-      }
+            transcriber.on('open', () => {
+                console.log('[DEBUG] AssemblyAI WebSocket opened');
+                isTranscriberOpenRef.current = true;
+            });
+
+            transcriber.on('close', (code, reason) => {
+                console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
+                isTranscriberOpenRef.current = false;
+                if (code === 1008) {
+                    console.error('[DEBUG] Invalid API key detected. Verify token.');
+                    alert('Invalid API key. Please check your AssemblyAI token and ensure your account is upgraded for Universal-Streaming.');
+                }
+                stopEventRef.current.set(); // Signal stop event on close
+            });
+
+            transcriber.on('error', (error) => {
+                console.error('[DEBUG] AssemblyAI WebSocket error:', error);
+                alert(`Transcription error: ${error.message}`);
+                stopEventRef.current.set(); // Signal stop event on error
+            });
+
+            transcriber.on('transcript', (message) => {
+                console.log('[DEBUG] Message received:', message);
+                if (message.type !== 'Turn' || !message.transcript) return;
+
+                if (!message.turn_is_formatted) {
+                    setCurrentTranscript(message.transcript);
+                } else {
+                    console.log('[DEBUG] Formatted turn transcript:', message.transcript);
+                    setCurrentTranscript('');
+                    supabase.functions.invoke('transcription-service', {
+                        body: {
+                            debate_id: liveDebate.id,
+                            speaker: activeSpeaker,
+                            transcript: message.transcript,
+                            user_id: user.id,
+                        },
+                    }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+                }
+            });
+
+            transcriber.on('begin', (message) => {
+                console.log('[DEBUG] Session began:', message);
+            });
+
+            transcriber.on('termination', (message) => {
+                console.log('[DEBUG] Session terminated:', message);
+                stopEventRef.current.set();
+            });
+
+            await transcriber.connect();
+            console.log('[DEBUG] WebSocket connection initiated');
+
+            const source = context.createMediaStreamSource(stream);
+            const processor = context.createScriptProcessor(800, 1, 1); // Reduced buffer size to 800 frames (50ms) for lower latency
+            audioProcessorRef.current = processor;
+
+            processor.onaudioprocess = (e) => {
+                if (isTranscriberOpenRef.current && !stopEventRef.current.isSet()) {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    transcriber.sendAudio(inputData);
+                }
+            };
+
+            source.connect(processor);
+            processor.connect(context.destination);
+        } catch (err) {
+            console.error('[DEBUG] Error starting transcription:', err);
+            alert(`Error starting transcription: ${err.message}`);
+            stopTranscription();
+        }
     };
 
-    source.connect(processor);
-    processor.connect(context.destination);
-  } catch (err) {
-    console.error('[DEBUG] Error starting transcription:', err);
-    alert(`Error starting transcription: ${err.message}`);
-    stopTranscription();
-  }
-};
-    // --- Function to Stop Transcription ---
+    // --- Updated Function to Stop Transcription ---
     const stopTranscription = async () => {
-        if (transcriberRef.current && isTranscriberOpenRef.current) {
-            await transcriberRef.current.close();
-            console.log('[DEBUG] WebSocket connection closed');
+        try {
+            if (transcriberRef.current && isTranscriberOpenRef.current) {
+                await transcriberRef.current.send({ type: 'Terminate' }); // Send termination message for Universal-Streaming
+                console.log('[DEBUG] Sent termination message');
+                await transcriberRef.current.close();
+                console.log('[DEBUG] WebSocket connection closed');
+            }
+
+            if (audioProcessorRef.current) {
+                audioProcessorRef.current.disconnect();
+                audioProcessorRef.current = null;
+            }
+
+            if (audioContextRef.current) {
+                await audioContextRef.current.close();
+                audioContextRef.current = null;
+            }
+
+            if (audioStreamRef.current) {
+                audioStreamRef.current.getTracks().forEach(track => track.stop());
+                audioStreamRef.current = null;
+            }
+
+            if (stopEventRef.current) {
+                stopEventRef.current.set(); // Signal stop event
+                stopEventRef.current = null;
+            }
+
+            transcriberRef.current = null;
+            isTranscriberOpenRef.current = false;
+        } catch (err) {
+            console.error('[DEBUG] Error stopping transcription:', err);
+        } finally {
+            setIsRecording(false);
+            setCurrentTranscript('');
         }
-        if (audioProcessorRef.current) audioProcessorRef.current.disconnect();
-        if (audioContextRef.current) await audioContextRef.current.close();
-        if (audioStreamRef.current) audioStreamRef.current.getTracks().forEach(track => track.stop());
-        
-        transcriberRef.current = null;
-        isTranscriberOpenRef.current = false;
-        audioProcessorRef.current = null;
-        audioContextRef.current = null;
-        audioStreamRef.current = null;
-        
-        setIsRecording(false);
-        setCurrentTranscript('');
     };
 
     const handleAutomaticStart = async () => {
-  try {
-    await startTranscription();
-  } catch (err) {
-    console.error('[DEBUG] Error in handleAutomaticStart:', err);
-    alert(err.message);
-  }
-};
+        try {
+            await startTranscription();
+        } catch (err) {
+            console.error('[DEBUG] Error in handleAutomaticStart:', err);
+            alert(err.message);
+        }
+    };
 
     const handleManualStart = async () => {
         if (!manualToken) {
@@ -312,31 +350,27 @@ const DebatePage = ({ user }) => {
             handleAutomaticStart();
         }
     };
-    
+
     const handleStartDebate = async () => {
         if (!selectedSetupId || !debateTitle.trim()) { alert("Please provide a title and select a setup."); return; }
         const selectedSetup = setups.find(s => s.id === selectedSetupId);
         if (!selectedSetup) { alert("Selected setup not found."); return; }
-
         const { data: debateData, error: debateError } = await supabase
             .from('debates')
             .insert({ title: debateTitle, user_id: user.id, setup_id: selectedSetup.id === 'quick_start' ? null : selectedSetup.id })
             .select().single();
-
         if (debateError) {
             console.error("[DEBUG] Error starting debate:", debateError);
             alert("Could not start debate.");
             return;
         }
-
         const sourcesPrompt = (selectedSetup.sources || []).map(s => `${s.source} (Topics: ${s.topics.join(', ')})`).join('\n');
         const primedTopics = [...new Set((selectedSetup.sources || []).flatMap(s => s.topics))];
         await supabase.from('instructions').insert({ debate_id: debateData.id, user_id: user.id, general_prompt: selectedSetup.general_instructions, sources_prompt: sourcesPrompt, primed_topics: primedTopics });
-
-        setLiveDebate(debateData); 
-        setLiveFeedItems([]); 
-        setTopics([]); 
-        setTranscriptLines([]); 
+        setLiveDebate(debateData);
+        setLiveFeedItems([]);
+        setTopics([]);
+        setTranscriptLines([]);
         setPageState('live');
     };
 
@@ -344,7 +378,7 @@ const DebatePage = ({ user }) => {
         if (isRecording) {
             await stopTranscription();
         }
-        setPageState('setup'); 
+        setPageState('setup');
         setLiveDebate(null);
     };
 
@@ -364,7 +398,7 @@ const DebatePage = ({ user }) => {
             return true;
         });
     };
-    
+
     if (pageState === 'setup') {
         return (
             <div className="p-8 max-w-2xl mx-auto h-full overflow-y-auto">
@@ -393,10 +427,10 @@ const DebatePage = ({ user }) => {
                             </div>
                         )}
                         <div className="pt-6">
-                             <button onClick={handleStartDebate} disabled={!selectedSetupId || isLoadingSetups || !debateTitle.trim()} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-full hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center gap-3 mx-auto disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none">
+                            <button onClick={handleStartDebate} disabled={!selectedSetupId || isLoadingSetups || !debateTitle.trim()} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-full hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center gap-3 mx-auto disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none">
                                 <MicIcon className="h-6 w-6" />Start Debate Session
                             </button>
-                             <p className="mt-4 text-sm text-gray-500">You can create custom setups on the "Setups" page.</p>
+                            <p className="mt-4 text-sm text-gray-500">You can create custom setups on the "Setups" page.</p>
                         </div>
                     </div>
                 </div>
@@ -433,7 +467,6 @@ const DebatePage = ({ user }) => {
                     </>)}
                 </div>
             </div>
-
             <div className="w-full md:w-2/3 lg:w-3/4 p-4 flex flex-col">
                 <div className="flex-shrink-0 bg-white rounded-t-lg p-2 shadow z-10">
                     <div className="flex border-b border-gray-200">
@@ -478,7 +511,7 @@ const SetupManagerPage = ({ user }) => {
     const fetchSetups = async () => {
         setIsLoading(true);
         const { data, error } = await supabase.from('debate_setups').select('*').eq('user_id', user.id).order('created_at');
-        if (error) console.error("Error fetching setups:", error); 
+        if (error) console.error("Error fetching setups:", error);
         else setSetups(data || []);
         setIsLoading(false);
     };
@@ -489,44 +522,45 @@ const SetupManagerPage = ({ user }) => {
         e.preventDefault();
         if (!newSource) return;
         setSources(currentSources => [
-            ...currentSources, 
-            { 
-                source: newSource, 
-                topics: newTopics.split(',').map(t => t.trim()).filter(Boolean), 
-                prioritize: prioritizeSource 
+            ...currentSources,
+            {
+                source: newSource,
+                topics: newTopics.split(',').map(t => t.trim()).filter(Boolean),
+                prioritize: prioritizeSource
             }
         ]);
         setNewSource('');
         setNewTopics('');
         setPrioritizeSource(false);
     };
-    
+
     const handleGenerateTopics = async () => {
         if (!newSource) { alert("Please enter a source name or URL first."); return; }
         setIsGeneratingTopics(true);
-        try { 
-            const { data, error } = await supabase.functions.invoke('source-analyzer', { body: { source_query: newSource } }); 
-            if (error) throw error; 
-            setNewTopics(data.topics.join(', ')); 
-        } catch (error) { 
-            console.error("Error generating topics:", error); 
-            alert("Could not generate topics from the source."); 
-        } finally { 
-            setIsGeneratingTopics(false); 
+        try {
+            const { data, error } = await supabase.functions.invoke('source-analyzer', { body: { source_query: newSource } });
+            if (error) throw error;
+            setNewTopics(data.topics.join(', '));
+        } catch (error) {
+            console.error("Error generating topics:", error);
+            alert("Could not generate topics from the source.");
+        } finally {
+            setIsGeneratingTopics(false);
         }
     };
+
     const handleSaveSetup = async () => {
-        if (!setupName) { alert("Please provide a name for this setup."); return; } 
+        if (!setupName) { alert("Please provide a name for this setup."); return; }
         setIsSaving(true);
         const { error } = await supabase.from('debate_setups').insert({ user_id: user.id, name: setupName, general_instructions: generalInstructions, sources: sources });
-        if (error) { 
-            alert("Error saving setup: " + error.message); 
-        } else { 
-            alert("Setup saved successfully!"); 
-            setSetupName(''); 
-            setGeneralInstructions(''); 
-            setSources([]); 
-            fetchSetups(); 
+        if (error) {
+            alert("Error saving setup: " + error.message);
+        } else {
+            alert("Setup saved successfully!");
+            setSetupName('');
+            setGeneralInstructions('');
+            setSources([]);
+            fetchSetups();
         }
         setIsSaving(false);
     };
@@ -539,23 +573,23 @@ const SetupManagerPage = ({ user }) => {
                     <h3 className="text-2xl font-bold text-gray-800">Create New Setup</h3>
                     <div> <label htmlFor="setup-name" className="block text-lg font-medium text-gray-700 mb-2">Setup Name</label> <input id="setup-name" type="text" value={setupName} onChange={(e) => setSetupName(e.target.value)} placeholder="e.g., Economic Policy Setup" className="w-full p-2 border rounded-md shadow-sm" /> </div>
                     <div> <label htmlFor="general-instructions" className="block text-lg font-medium text-gray-700 mb-2">AI Instructions & Watchlist</label> <textarea id="general-instructions" rows="4" className="w-full p-2 border rounded-md shadow-sm" placeholder="e.g., Watch for mentions of 'fiscal responsibility'." value={generalInstructions} onChange={(e) => setGeneralInstructions(e.target.value)} /> </div>
-                    <div> 
-                        <label className="block text-lg font-medium text-gray-700 mb-2">Preferred Sources & Topics</label> 
-                        <form onSubmit={handleAddSource} className="bg-gray-50 p-4 rounded-lg space-y-3"> 
-                            <input type="text" value={newSource} onChange={(e) => setNewSource(e.target.value)} placeholder="Source Name or URL (e.g., IPCC report)" className="w-full p-2 border rounded-md" /> 
-                            <div className="flex items-center gap-2"> 
-                                <input type="text" value={newTopics} onChange={(e) => setNewTopics(e.target.value)} placeholder="Add topics (comma-separated)..." className="w-full p-2 border rounded-md" /> 
-                                <button type="button" onClick={handleGenerateTopics} disabled={isGeneratingTopics} className="text-sm bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 whitespace-nowrap disabled:opacity-50">{isGeneratingTopics ? 'Analyzing...' : 'Analyze'}</button> 
+                    <div>
+                        <label className="block text-lg font-medium text-gray-700 mb-2">Preferred Sources & Topics</label>
+                        <form onSubmit={handleAddSource} className="bg-gray-50 p-4 rounded-lg space-y-3">
+                            <input type="text" value={newSource} onChange={(e) => setNewSource(e.target.value)} placeholder="Source Name or URL (e.g., IPCC report)" className="w-full p-2 border rounded-md" />
+                            <div className="flex items-center gap-2">
+                                <input type="text" value={newTopics} onChange={(e) => setNewTopics(e.target.value)} placeholder="Add topics (comma-separated)..." className="w-full p-2 border rounded-md" />
+                                <button type="button" onClick={handleGenerateTopics} disabled={isGeneratingTopics} className="text-sm bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 whitespace-nowrap disabled:opacity-50">{isGeneratingTopics ? 'Analyzing...' : 'Analyze'}</button>
                             </div>
                             <div className="flex items-center">
                                 <input id="prioritize-source" type="checkbox" checked={prioritizeSource} onChange={(e) => setPrioritizeSource(e.target.checked)} className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                                 <label htmlFor="prioritize-source" className="ml-2 block text-sm text-gray-900">Prioritize this source as primary truth</label>
                             </div>
-                            <button type="submit" className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Source & Topics</button> 
-                        </form> 
-                        <div className="mt-4 space-y-2"> 
-                            {sources.map((s, index) => ( 
-                                <div key={index} className="bg-white p-3 border rounded-md flex justify-between items-start"> 
+                            <button type="submit" className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Source & Topics</button>
+                        </form>
+                        <div className="mt-4 space-y-2">
+                            {sources.map((s, index) => (
+                                <div key={index} className="bg-white p-3 border rounded-md flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center">
                                             {s.prioritize && <StarIcon className="h-5 w-5 text-yellow-400 mr-2" />}
@@ -563,47 +597,48 @@ const SetupManagerPage = ({ user }) => {
                                         </div>
                                         <div className="flex flex-wrap gap-1 mt-1 pl-7">
                                             {s.topics.map(t => <span key={t} className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{t}</span>)}
-                                        </div> 
+                                        </div>
                                     </div>
-                                </div> 
-                            ))} 
-                        </div> 
+                                </div>
+                            ))}
+                        </div>
                     </div>
                     <div className="text-center pt-4"> <button onClick={handleSaveSetup} disabled={isSaving} className="w-full bg-green-600 text-white font-bold py-3 px-8 rounded-md hover:bg-green-700 disabled:bg-green-400">{isSaving ? 'Saving...' : 'Save New Setup'}</button> </div>
                 </div>
                 <div className="space-y-4">
-                     <h3 className="text-2xl font-bold text-gray-800">My Saved Setups</h3>
-                     {isLoading ? ( <p>Loading...</p> ) : setups.length === 0 ? ( <p className="text-gray-600">You haven't created any setups yet.</p> ) : (
-                         <div className="space-y-4 h-[calc(100vh-250px)] overflow-y-auto pr-2">
-                          {setups.map(setup => (
-                              <div key={setup.id} className="bg-white p-4 rounded-lg shadow">
-                                  <h4 className="font-bold text-lg text-blue-700">{setup.name}</h4>
-                                  <p className="text-sm text-gray-600 mt-1 mb-3">{setup.general_instructions}</p>
-                                  {(setup.sources || []).length > 0 && (
-                                      <div className="border-t pt-3 mt-3 space-y-3">
-                                          <h5 className="font-semibold text-sm text-gray-700">Preferred Sources:</h5>
-                                          {setup.sources.map((source, index) => ( 
-                                              <div key={index} className="text-sm"> 
-                                                  <div className="flex items-center">
-                                                      {source.prioritize && <StarIcon className="h-4 w-4 text-yellow-400 mr-2" />}
-                                                      <p className="font-medium text-gray-900">{source.source}</p> 
-                                                  </div>
-                                                  <div className="flex flex-wrap gap-1 mt-1 pl-6"> 
-                                                      {source.topics.map(topic => ( <span key={topic} className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs">{topic}</span> ))} 
-                                                  </div> 
-                                              </div> 
-                                          ))}
-                                      </div>
-                                  )}
-                              </div>
-                          ))}
-                         </div>
-                     )}
+                    <h3 className="text-2xl font-bold text-gray-800">My Saved Setups</h3>
+                    {isLoading ? ( <p>Loading...</p> ) : setups.length === 0 ? ( <p className="text-gray-600">You haven't created any setups yet.</p> ) : (
+                        <div className="space-y-4 h-[calc(100vh-250px)] overflow-y-auto pr-2">
+                            {setups.map(setup => (
+                                <div key={setup.id} className="bg-white p-4 rounded-lg shadow">
+                                    <h4 className="font-bold text-lg text-blue-700">{setup.name}</h4>
+                                    <p className="text-sm text-gray-600 mt-1 mb-3">{setup.general_instructions}</p>
+                                    {(setup.sources || []).length > 0 && (
+                                        <div className="border-t pt-3 mt-3 space-y-3">
+                                            <h5 className="font-semibold text-sm text-gray-700">Preferred Sources:</h5>
+                                            {setup.sources.map((source, index) => (
+                                                <div key={index} className="text-sm">
+                                                    <div className="flex items-center">
+                                                        {source.prioritize && <StarIcon className="h-4 w-4 text-yellow-400 mr-2" />}
+                                                        <p className="font-medium text-gray-900">{source.source}</p>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1 mt-1 pl-6">
+                                                        {source.topics.map(topic => ( <span key={topic} className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs">{topic}</span> ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
+
 const ProfilePage = ({ onViewAnalysis, user }) => {
     const [debateHistory, setDebateHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -612,7 +647,7 @@ const ProfilePage = ({ onViewAnalysis, user }) => {
         const fetchDebateHistory = async () => {
             setLoading(true);
             const { data, error } = await supabase.from('debates').select(`id, title, created_at, topics (id, title), analysis_cards (id, speaker, data, card_type), debate_summaries (*)`).eq('user_id', user.id).order('created_at', { ascending: false });
-            if (error) { console.error("Error fetching debate history:", error); } 
+            if (error) { console.error("Error fetching debate history:", error); }
             else { setDebateHistory(data || []); }
             setLoading(false);
         };
@@ -631,6 +666,7 @@ const ProfilePage = ({ onViewAnalysis, user }) => {
         </div>
     );
 };
+
 const AnalysisPage = ({ debate, onBack }) => {
     const [activeTab, setActiveTab] = useState('analysis');
     const [selectedTopics, setSelectedTopics] = useState(['all']);
@@ -639,7 +675,7 @@ const AnalysisPage = ({ debate, onBack }) => {
     useEffect(() => {
         const fetchTranscriptLines = async () => {
             const { data, error } = await supabase.from('transcript_lines').select('line_number, text').eq('debate_id', debate.id).order('line_number');
-            if (error) console.error('Error fetching transcript lines:', error); 
+            if (error) console.error('Error fetching transcript lines:', error);
             else setTranscriptLines(data || []);
         };
         fetchTranscriptLines();
@@ -651,14 +687,14 @@ const AnalysisPage = ({ debate, onBack }) => {
     const opponentEvasions = debate.analysis_cards.filter(c => c.speaker === 'opponent' && c.card_type === 'evasion').length;
 
     const handleTopicToggle = (topicId) => {
-        if (topicId === 'all') { setSelectedTopics(['all']); } 
-        else { 
-            const newTopics = selectedTopics.includes('all') ? [] : [...selectedTopics]; 
-            const index = newTopics.indexOf(topicId); 
-            if (index > -1) { newTopics.splice(index, 1); } 
-            else { newTopics.push(topicId); } 
-            if (newTopics.length === 0) { setSelectedTopics(['all']); } 
-            else { setSelectedTopics(newTopics); } 
+        if (topicId === 'all') { setSelectedTopics(['all']); }
+        else {
+            const newTopics = selectedTopics.includes('all') ? [] : [...selectedTopics];
+            const index = newTopics.indexOf(topicId);
+            if (index > -1) { newTopics.splice(index, 1); }
+            else { newTopics.push(topicId); }
+            if (newTopics.length === 0) { setSelectedTopics(['all']); }
+            else { setSelectedTopics(newTopics); }
         }
     };
 
@@ -670,10 +706,10 @@ const AnalysisPage = ({ debate, onBack }) => {
 
     const highlightTranscript = (lineNumber) => {
         const lineElement = document.getElementById(`line-${lineNumber}`);
-        if (lineElement) { 
-            lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
-            lineElement.classList.add('bg-yellow-200'); 
-            setTimeout(() => lineElement.classList.remove('bg-yellow-200'), 3000); 
+        if (lineElement) {
+            lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            lineElement.classList.add('bg-yellow-200');
+            setTimeout(() => lineElement.classList.remove('bg-yellow-200'), 3000);
         }
     };
 
@@ -742,7 +778,7 @@ const CoachingSection = ({ coaching }) => {
     };
     return (
         <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-             <h4 className="font-semibold text-gray-600 flex items-center"><LightBulbIcon className="h-5 w-5 mr-2" />Coaching Suggestions</h4>
+            <h4 className="font-semibold text-gray-600 flex items-center"><LightBulbIcon className="h-5 w-5 mr-2" />Coaching Suggestions</h4>
             {Object.entries(coaching).map(([key, value]) => {
                 const info = coachingInfo[key] || { icon: <LightBulbIcon className="h-5 w-5" />, title: 'Suggestion', color: 'gray' };
                 return (
