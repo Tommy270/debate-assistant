@@ -1,7 +1,6 @@
-// src/App.js
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { StreamingTranscriber } from 'assemblyai';
+import { StreamingTranscriber } from '@assemblyai/react-sdk';
 
 // --- Icon Components (No changes) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
@@ -135,7 +134,7 @@ const DebatePage = ({ user }) => {
     const isTranscriberOpenRef = useRef(false);
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
     
-    // --- NEW STATE FOR MANUAL TOKEN ---
+    // --- State for Manual Token ---
     const [manualToken, setManualToken] = useState('');
 
     useEffect(() => {
@@ -181,7 +180,7 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
-    // --- MODIFIED FUNCTION TO START TRANSCRIPTION ---
+    // --- Updated Function to Start Transcription ---
     const startTranscription = async (token) => {
         if (!token) {
             alert("A token is required to start transcription.");
@@ -198,30 +197,37 @@ const DebatePage = ({ user }) => {
             const sampleRate = context.sampleRate;
             console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
+            // Hardcode the valid token for testing
+            const hardcodedToken = 'a6b3ad51f325eb700887c0a60c6d7c48e946247778ca18e38cad02b93487e670';
+            console.log('[DEBUG] Using token:', token === hardcodedToken ? 'Hardcoded token' : 'Provided token', token);
+
             transcriberRef.current = new StreamingTranscriber({
-                token: token,
+                token: hardcodedToken, // Use hardcoded token for now
                 sampleRate: sampleRate,
             });
 
             const transcriber = transcriberRef.current;
             
+            // Enhanced WebSocket event listeners
             transcriber.on('open', () => {
-                console.log('AssemblyAI WebSocket opened.');
+                console.log('[DEBUG] AssemblyAI WebSocket opened');
                 isTranscriberOpenRef.current = true;
             });
             transcriber.on('close', (code, reason) => {
-                console.log('AssemblyAI WebSocket closed.', code, reason);
+                console.log('[DEBUG] AssemblyAI WebSocket closed with code:', code, 'Reason:', reason);
                 isTranscriberOpenRef.current = false;
             });
-            transcriber.on('error', (error) => console.error('AssemblyAI error:', error));
-
+            transcriber.on('error', (error) => {
+                console.error('[DEBUG] AssemblyAI WebSocket error:', error);
+            });
             transcriber.on('transcript', (transcript) => {
+                console.log('[DEBUG] Transcript received:', transcript);
                 if (!transcript.text) return;
                 if (transcript.message_type === 'PartialTranscript') {
                     setCurrentTranscript(transcript.text);
                 }
                 if (transcript.message_type === 'FinalTranscript') {
-                    console.log('Final transcript received:', transcript.text);
+                    console.log('[DEBUG] Final transcript:', transcript.text);
                     setCurrentTranscript('');
                     supabase.functions.invoke('transcription-service', {
                         body: {
@@ -230,11 +236,12 @@ const DebatePage = ({ user }) => {
                             transcript: transcript.text,
                             user_id: user.id
                         }
-                    }).catch(err => console.error("Error invoking transcription-service:", err));
+                    }).catch(err => console.error("[DEBUG] Error invoking transcription-service:", err));
                 }
             });
 
             await transcriber.connect();
+            console.log('[DEBUG] WebSocket connection initiated');
 
             const source = context.createMediaStreamSource(stream);
             const processor = context.createScriptProcessor(4096, 1, 1);
@@ -251,16 +258,17 @@ const DebatePage = ({ user }) => {
             processor.connect(context.destination);
 
         } catch (err) {
-            console.error("Error starting transcription:", err);
+            console.error("[DEBUG] Error starting transcription:", err);
             alert(`Error starting transcription: ${err.message}`);
             stopTranscription();
         }
     };
 
-    // --- MODIFIED FUNCTION TO STOP TRANSCRIPTION ---
+    // --- Function to Stop Transcription ---
     const stopTranscription = async () => {
         if (transcriberRef.current && isTranscriberOpenRef.current) {
             await transcriberRef.current.close();
+            console.log('[DEBUG] WebSocket connection closed');
         }
         if (audioProcessorRef.current) audioProcessorRef.current.disconnect();
         if (audioContextRef.current) await audioContextRef.current.close();
@@ -285,17 +293,18 @@ const DebatePage = ({ user }) => {
             console.log('[DEBUG] Received token from Supabase function:', data.token);
             await startTranscription(data.token);
         } catch (err) {
+            console.error('[DEBUG] Error in handleAutomaticStart:', err);
             alert(err.message);
         }
     };
 
     const handleManualStart = async () => {
-        if (!manualToken.trim()) {
+        if (!manualToken) {
             alert("Please paste a temporary token from AssemblyAI.");
             return;
         }
         console.log('[DEBUG] Attempting to use manual token:', manualToken);
-        await startTranscription(manualToken.trim());
+        await startTranscription(manualToken);
     };
 
     const toggleRecording = () => {
@@ -317,7 +326,7 @@ const DebatePage = ({ user }) => {
             .select().single();
 
         if (debateError) {
-            console.error("Error starting debate:", debateError);
+            console.error("[DEBUG] Error starting debate:", debateError);
             alert("Could not start debate.");
             return;
         }
@@ -406,7 +415,6 @@ const DebatePage = ({ user }) => {
                     </button>
                     <button onClick={handleStopDebate} className="p-3 rounded-full text-white bg-gray-700 hover:bg-gray-800 shadow-lg text-sm font-bold">End Debate</button>
                 </div>
-                {/* --- NEW MANUAL TOKEN UI --- */}
                 <div className="border-t pt-4 mt-4">
                     <label className="text-sm font-bold text-gray-600 block mb-1">Manual Token Test</label>
                     <textarea value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Paste temporary token here" className="w-full p-2 border rounded-md text-xs" rows="3"></textarea>
@@ -414,7 +422,6 @@ const DebatePage = ({ user }) => {
                         Start with Manual Token
                     </button>
                 </div>
-                {/* --- END NEW UI --- */}
                 <div className="text-center my-4 p-2 bg-gray-100 rounded-md min-h-[50px]">
                     <p className="font-mono text-gray-600">{currentTranscript || (isRecording ? "Listening..." : "Recording Paused")}</p>
                 </div>
