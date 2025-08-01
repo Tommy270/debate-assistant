@@ -197,7 +197,8 @@ const DebatePage = ({ user }) => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioStreamRef.current = stream;
 
-    const context = new (window.AudioContext || window.webkitAudioContext)();
+    const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    console.log('Audio context sample rate:', context.sampleRate); // Verify it's 16000
     audioContextRef.current = context;
     const sampleRate = context.sampleRate;
     console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
