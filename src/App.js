@@ -183,7 +183,7 @@ const DebatePage = ({ user }) => {
     // --- Updated Function to Start Transcription ---
     const startTranscription = async () => {
   // Hardcode the known working token
-  const token = '19a06ea03dcb7566b476fec94dfdbf47250c370edf3e93c4b8e8b3042b49c2d4';
+  const token = '29a1a195fa78b05e60e34ad47d3acbed4e592ecfc1eb423233f057d7017b1996';
   console.log('[DEBUG] Using hardcoded token:', token);
 
   if (!token) {
