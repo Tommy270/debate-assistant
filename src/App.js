@@ -140,7 +140,7 @@ const DebatePage = ({ user }) => {
     const [showSetups, setShowSetups] = useState(false);
     const [debateTitle, setDebateTitle] = useState(`New Debate ${new Date().toLocaleDateString()}`);
     const [isRecording, setIsRecording] = useState(false);
-    const [isFetchingToken, setIsFetchingToken] = useState(false); // New: Loading state for token fetch
+    const [isFetchingToken, setIsFetchingToken] = useState(false);
     const [currentTranscript, setCurrentTranscript] = useState('');
     const transcriberRef = useRef(null);
     const audioContextRef = useRef(null);
@@ -320,7 +320,7 @@ const DebatePage = ({ user }) => {
             console.log('[DEBUG] WebSocket connection initiated');
 
             const source = context.createMediaStreamSource(stream);
-            const processor = context.createScriptProcessor(800, 1, 1);
+            const processor = context.createScriptProcessor(4096, 1, 1);
             audioProcessorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
