@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import { StreamingTranscriber } from 'assemblyai';
 
-// --- Icon Components (No changes needed here, but fixed HomeIcon path data) ---
+// --- Icon Components (No changes) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
 const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
@@ -12,7 +12,6 @@ const SparklesIcon = ({ className }) => <svg className={className} xmlns="http:/
 const ShieldCheckIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
 const HandIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15l3-3m0 0l-3-3m3 3h-7.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const UserCircleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-// FIX: Corrected the path data for the HomeIcon to prevent SVG errors.
 const HomeIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>;
 const ArrowLeftIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>;
 const ExclamationTriangleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
@@ -21,10 +20,8 @@ const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="http:
 const LightBulbIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.007z" clipRule="evenodd" /></svg>;
 
-
-// --- Main App Component ---
+// --- Main App Component (No changes) ---
 const App = () => {
-    // ... (no changes in this part of the component)
     const [session, setSession] = useState(null);
     const [currentPage, setCurrentPage] = useState('debate');
     const [selectedDebate, setSelectedDebate] = useState(null);
@@ -116,8 +113,7 @@ const App = () => {
 
 // --- DebatePage Component ---
 const DebatePage = ({ user }) => {
-    // ... (no changes to state variables)
-    const [pageState, setPageState] = useState('setup'); // 'setup', 'live'
+    const [pageState, setPageState] = useState('setup');
     const [setups, setSetups] = useState([]);
     const [selectedSetupId, setSelectedSetupId] = useState('quick_start');
     const [liveDebate, setLiveDebate] = useState(null);
@@ -138,18 +134,17 @@ const DebatePage = ({ user }) => {
     const audioStreamRef = useRef(null);
     const isTranscriberOpenRef = useRef(false);
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
+    
+    // --- NEW STATE FOR MANUAL TOKEN ---
+    const [manualToken, setManualToken] = useState('');
 
-    // ... (no changes to useEffect hooks)
     useEffect(() => {
         if (pageState === 'setup') {
             const fetchSetups = async () => {
                 setIsLoadingSetups(true);
                 const { data, error } = await supabase.from('debate_setups').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-                if (error) { 
-                    console.error('Error fetching debate setups:', error); 
-                } else { 
-                    setSetups([quickStartSetup, ...(data || [])]); 
-                }
+                if (error) { console.error('Error fetching debate setups:', error); } 
+                else { setSetups([quickStartSetup, ...(data || [])]); }
                 setIsLoadingSetups(false);
             };
             fetchSetups();
@@ -186,116 +181,131 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
+    // --- MODIFIED FUNCTION TO START TRANSCRIPTION ---
+    const startTranscription = async (token) => {
+        if (!token) {
+            alert("A token is required to start transcription.");
+            return;
+        }
 
-    const toggleRecording = async () => {
-        if (isRecording) {
-            if (transcriberRef.current && isTranscriberOpenRef.current) {
-                await transcriberRef.current.close();
-                transcriberRef.current = null;
+        setIsRecording(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStreamRef.current = stream;
+
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            audioContextRef.current = context;
+            const sampleRate = context.sampleRate;
+            console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
+
+            transcriberRef.current = new StreamingTranscriber({
+                token: token,
+                sampleRate: sampleRate,
+            });
+
+            const transcriber = transcriberRef.current;
+            
+            transcriber.on('open', () => {
+                console.log('AssemblyAI WebSocket opened.');
+                isTranscriberOpenRef.current = true;
+            });
+            transcriber.on('close', (code, reason) => {
+                console.log('AssemblyAI WebSocket closed.', code, reason);
                 isTranscriberOpenRef.current = false;
-            }
-            if (audioProcessorRef.current) {
-                audioProcessorRef.current.disconnect();
-                audioProcessorRef.current = null;
-            }
-            if (audioContextRef.current) {
-                await audioContextRef.current.close();
-                audioContextRef.current = null;
-            }
-            if (audioStreamRef.current) {
-                audioStreamRef.current.getTracks().forEach(track => track.stop());
-                audioStreamRef.current = null;
-            }
-            setIsRecording(false);
-            setCurrentTranscript('');
-        } else {
-            setIsRecording(true);
-            try {
-                // 1. Get temporary token from Supabase function
-                const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
-                
-                if (error || !data.token) {
-                    throw new Error(`Failed to get AssemblyAI token: ${error?.message || 'No token returned'}`);
+            });
+            transcriber.on('error', (error) => console.error('AssemblyAI error:', error));
+
+            transcriber.on('transcript', (transcript) => {
+                if (!transcript.text) return;
+                if (transcript.message_type === 'PartialTranscript') {
+                    setCurrentTranscript(transcript.text);
                 }
+                if (transcript.message_type === 'FinalTranscript') {
+                    console.log('Final transcript received:', transcript.text);
+                    setCurrentTranscript('');
+                    supabase.functions.invoke('transcription-service', {
+                        body: {
+                            debate_id: liveDebate.id,
+                            speaker: activeSpeaker,
+                            transcript: transcript.text,
+                            user_id: user.id
+                        }
+                    }).catch(err => console.error("Error invoking transcription-service:", err));
+                }
+            });
 
-                // --- NEW DEBUGGING LOG ---
-                // Log the token as soon as the React app receives it.
-                console.log('[DEBUG] Received token from Supabase function:', data.token);
-                // --- END NEW DEBUGGING LOG ---
+            await transcriber.connect();
 
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioStreamRef.current = stream;
+            const source = context.createMediaStreamSource(stream);
+            const processor = context.createScriptProcessor(4096, 1, 1);
+            audioProcessorRef.current = processor;
 
-                const context = new (window.AudioContext || window.webkitAudioContext)();
-                audioContextRef.current = context;
-                const sampleRate = context.sampleRate;
-                console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
+            processor.onaudioprocess = (e) => {
+                if (isTranscriberOpenRef.current) {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    transcriber.sendAudio(inputData);
+                }
+            };
+            
+            source.connect(processor);
+            processor.connect(context.destination);
 
-                transcriberRef.current = new StreamingTranscriber({
-                    token: data.token, // Use the received token
-                    sampleRate: sampleRate,
-                });
+        } catch (err) {
+            console.error("Error starting transcription:", err);
+            alert(`Error starting transcription: ${err.message}`);
+            stopTranscription();
+        }
+    };
 
-                const transcriber = transcriberRef.current;
-                
-                transcriber.on('open', () => {
-                    console.log('AssemblyAI WebSocket opened.');
-                    isTranscriberOpenRef.current = true;
-                });
-                transcriber.on('close', (code, reason) => {
-                    console.log('AssemblyAI WebSocket closed.', code, reason);
-                    isTranscriberOpenRef.current = false;
-                });
-                transcriber.on('error', (error) => console.error('AssemblyAI error:', error));
+    // --- MODIFIED FUNCTION TO STOP TRANSCRIPTION ---
+    const stopTranscription = async () => {
+        if (transcriberRef.current && isTranscriberOpenRef.current) {
+            await transcriberRef.current.close();
+        }
+        if (audioProcessorRef.current) audioProcessorRef.current.disconnect();
+        if (audioContextRef.current) await audioContextRef.current.close();
+        if (audioStreamRef.current) audioStreamRef.current.getTracks().forEach(track => track.stop());
+        
+        transcriberRef.current = null;
+        isTranscriberOpenRef.current = false;
+        audioProcessorRef.current = null;
+        audioContextRef.current = null;
+        audioStreamRef.current = null;
+        
+        setIsRecording(false);
+        setCurrentTranscript('');
+    };
 
-                transcriber.on('transcript', (transcript) => {
-                    if (!transcript.text) return;
-                    if (transcript.message_type === 'PartialTranscript') {
-                        setCurrentTranscript(transcript.text);
-                    }
-                    if (transcript.message_type === 'FinalTranscript') {
-                        console.log('Final transcript received:', transcript.text);
-                        setCurrentTranscript('');
-                        supabase.functions.invoke('transcription-service', {
-                            body: {
-                                debate_id: liveDebate.id,
-                                speaker: activeSpeaker,
-                                transcript: transcript.text,
-                                user_id: user.id
-                            }
-                        }).catch(err => console.error("Error invoking transcription-service:", err));
-                    }
-                });
-
-                await transcriber.connect();
-
-                const source = context.createMediaStreamSource(stream);
-                const processor = context.createScriptProcessor(4096, 1, 1);
-                audioProcessorRef.current = processor;
-
-                processor.onaudioprocess = (e) => {
-                    if (isTranscriberOpenRef.current) {
-                        const inputData = e.inputBuffer.getChannelData(0);
-                        transcriber.sendAudio(inputData);
-                    }
-                };
-                
-                source.connect(processor);
-                processor.connect(context.destination);
-
-            } catch (err) {
-                console.error("Error starting recording:", err);
-                alert(`Error starting recording: ${err.message}`);
-                if (transcriberRef.current && isTranscriberOpenRef.current) { await transcriberRef.current.close(); }
-                if (audioContextRef.current) { await audioContextRef.current.close(); }
-                if (audioStreamRef.current) { audioStreamRef.current.getTracks().forEach(track => track.stop()); }
-                isTranscriberOpenRef.current = false;
-                setIsRecording(false);
+    const handleAutomaticStart = async () => {
+        try {
+            const { data, error } = await supabase.functions.invoke('get-assemblyai-token');
+            if (error || !data.token) {
+                throw new Error(`Failed to get AssemblyAI token: ${error?.message || 'No token returned'}`);
             }
+            console.log('[DEBUG] Received token from Supabase function:', data.token);
+            await startTranscription(data.token);
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleManualStart = async () => {
+        if (!manualToken.trim()) {
+            alert("Please paste a temporary token from AssemblyAI.");
+            return;
+        }
+        console.log('[DEBUG] Attempting to use manual token:', manualToken);
+        await startTranscription(manualToken.trim());
+    };
+
+    const toggleRecording = () => {
+        if (isRecording) {
+            stopTranscription();
+        } else {
+            handleAutomaticStart();
         }
     };
     
-    // ... (no changes to the rest of the file)
     const handleStartDebate = async () => {
         if (!selectedSetupId || !debateTitle.trim()) { alert("Please provide a title and select a setup."); return; }
         const selectedSetup = setups.find(s => s.id === selectedSetupId);
@@ -303,13 +313,8 @@ const DebatePage = ({ user }) => {
 
         const { data: debateData, error: debateError } = await supabase
             .from('debates')
-            .insert({
-                title: debateTitle,
-                user_id: user.id,
-                setup_id: selectedSetup.id === 'quick_start' ? null : selectedSetup.id
-            })
-            .select()
-            .single();
+            .insert({ title: debateTitle, user_id: user.id, setup_id: selectedSetup.id === 'quick_start' ? null : selectedSetup.id })
+            .select().single();
 
         if (debateError) {
             console.error("Error starting debate:", debateError);
@@ -319,7 +324,6 @@ const DebatePage = ({ user }) => {
 
         const sourcesPrompt = (selectedSetup.sources || []).map(s => `${s.source} (Topics: ${s.topics.join(', ')})`).join('\n');
         const primedTopics = [...new Set((selectedSetup.sources || []).flatMap(s => s.topics))];
-
         await supabase.from('instructions').insert({ debate_id: debateData.id, user_id: user.id, general_prompt: selectedSetup.general_instructions, sources_prompt: sourcesPrompt, primed_topics: primedTopics });
 
         setLiveDebate(debateData); 
@@ -331,12 +335,8 @@ const DebatePage = ({ user }) => {
 
     const handleStopDebate = async () => {
         if (isRecording) {
-            await toggleRecording();
+            await stopTranscription();
         }
-        try {
-            // Placeholder for a potential summarization service
-            // await supabase.functions.invoke('summarization-service', { body: { debate_id: liveDebate.id, user_id: user.id } });
-        } catch (error) { console.error("Error triggering post-debate analysis:", error); }
         setPageState('setup'); 
         setLiveDebate(null);
     };
@@ -397,20 +397,25 @@ const DebatePage = ({ user }) => {
         );
     }
 
-    // Live Debate View
     return (
         <div className="flex flex-col md:flex-row h-full font-sans text-gray-800">
             <div className="w-full md:w-1/3 lg:w-1/4 p-4 flex flex-col bg-white shadow-md">
                 <div className="flex justify-around items-center mb-6">
-                    <button 
-                        onClick={toggleRecording} 
-                        className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'}`}
-                    >
+                    <button onClick={toggleRecording} className={`p-4 rounded-full text-white shadow-lg transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'}`}>
                         {isRecording ? <StopIcon className="h-8 w-8" /> : <MicIcon className="h-8 w-8" />}
                     </button>
                     <button onClick={handleStopDebate} className="p-3 rounded-full text-white bg-gray-700 hover:bg-gray-800 shadow-lg text-sm font-bold">End Debate</button>
                 </div>
-                <div className="text-center mb-4 p-2 bg-gray-100 rounded-md min-h-[50px]">
+                {/* --- NEW MANUAL TOKEN UI --- */}
+                <div className="border-t pt-4 mt-4">
+                    <label className="text-sm font-bold text-gray-600 block mb-1">Manual Token Test</label>
+                    <textarea value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Paste temporary token here" className="w-full p-2 border rounded-md text-xs" rows="3"></textarea>
+                    <button onClick={handleManualStart} disabled={isRecording} className="w-full mt-2 bg-yellow-500 text-white font-bold py-2 rounded-md hover:bg-yellow-600 disabled:bg-gray-400">
+                        Start with Manual Token
+                    </button>
+                </div>
+                {/* --- END NEW UI --- */}
+                <div className="text-center my-4 p-2 bg-gray-100 rounded-md min-h-[50px]">
                     <p className="font-mono text-gray-600">{currentTranscript || (isRecording ? "Listening..." : "Recording Paused")}</p>
                 </div>
                 <div className="flex-grow overflow-y-auto">
@@ -452,8 +457,7 @@ const DebatePage = ({ user }) => {
     );
 };
 
-// --- Other Components (Setup, Profile, Analysis) ---
-// ... (No changes in these components)
+// --- Other Components (No changes) ---
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -604,9 +608,7 @@ const ProfilePage = ({ onViewAnalysis, user }) => {
             setLoading(true);
             const { data, error } = await supabase.from('debates').select(`id, title, created_at, topics (id, title), analysis_cards (id, speaker, data, card_type), debate_summaries (*)`).eq('user_id', user.id).order('created_at', { ascending: false });
             if (error) { console.error("Error fetching debate history:", error); } 
-            else { 
-                setDebateHistory(data || []); 
-            }
+            else { setDebateHistory(data || []); }
             setLoading(false);
         };
         fetchDebateHistory();
@@ -644,21 +646,14 @@ const AnalysisPage = ({ debate, onBack }) => {
     const opponentEvasions = debate.analysis_cards.filter(c => c.speaker === 'opponent' && c.card_type === 'evasion').length;
 
     const handleTopicToggle = (topicId) => {
-        if (topicId === 'all') { 
-            setSelectedTopics(['all']); 
-        } else { 
+        if (topicId === 'all') { setSelectedTopics(['all']); } 
+        else { 
             const newTopics = selectedTopics.includes('all') ? [] : [...selectedTopics]; 
             const index = newTopics.indexOf(topicId); 
-            if (index > -1) { 
-                newTopics.splice(index, 1); 
-            } else { 
-                newTopics.push(topicId); 
-            } 
-            if (newTopics.length === 0) { 
-                setSelectedTopics(['all']); 
-            } else { 
-                setSelectedTopics(newTopics); 
-            } 
+            if (index > -1) { newTopics.splice(index, 1); } 
+            else { newTopics.push(topicId); } 
+            if (newTopics.length === 0) { setSelectedTopics(['all']); } 
+            else { setSelectedTopics(newTopics); } 
         }
     };
 
@@ -709,7 +704,6 @@ const DebateHistoryCard = ({ debate, onViewAnalysis }) => (<div className="bg-wh
 const FilterButton = ({ label, filter, active, setter }) => (<button onClick={() => setter(filter)} className={`px-2 py-1 text-xs sm:text-sm rounded-full font-semibold transition-colors w-full ${active === filter ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{label}</button>);
 const FactCheckSection = ({ factCheck }) => {
     if (!factCheck || !factCheck.claims || factCheck.claims.length === 0) return null;
-
     return (
         <div className="mt-4 pt-4 border-t border-gray-200">
             <h4 className="font-semibold text-gray-600 flex items-center mb-2"><BalanceIcon className="h-5 w-5 mr-2" />Fact Check Analysis</h4>
@@ -725,9 +719,7 @@ const FactCheckSection = ({ factCheck }) => {
                     <div className="p-2 bg-gray-50 rounded-md">
                         <strong>Assumptions:</strong>
                         <ul className="list-disc list-inside">
-                            {factCheck.assumptions.map((assumption, index) => (
-                                <li key={index}>{assumption}</li>
-                            ))}
+                            {factCheck.assumptions.map((assumption, index) => ( <li key={index}>{assumption}</li> ))}
                         </ul>
                     </div>
                 )}
@@ -737,14 +729,12 @@ const FactCheckSection = ({ factCheck }) => {
 };
 const CoachingSection = ({ coaching }) => {
     if (!coaching || Object.keys(coaching).length === 0) return null;
-
     const coachingInfo = {
         'counter-argument': { icon: <ArrowUpIcon className="h-5 w-5" />, title: 'Counter Argument', color: 'cyan' },
         'self-correction': { icon: <SparklesIcon className="h-5 w-5" />, title: 'Self-Correction', color: 'purple' },
         'steelman': { icon: <ShieldCheckIcon className="h-5 w-5" />, title: 'Strengthen Argument (Steelman)', color: 'green' },
         'concession': { icon: <HandIcon className="h-5 w-5" />, title: 'Concession & Pivot', color: 'orange' },
     };
-
     return (
         <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
              <h4 className="font-semibold text-gray-600 flex items-center"><LightBulbIcon className="h-5 w-5 mr-2" />Coaching Suggestions</h4>
@@ -763,7 +753,6 @@ const CoachingSection = ({ coaching }) => {
 };
 const UnifiedCard = ({ item, onClick }) => {
     const { card_type, data } = item;
-
     const cardStyles = {
         'logical-fallacy': { color: 'border-red-500' },
         'evasion': { color: 'border-yellow-500' },
@@ -771,9 +760,7 @@ const UnifiedCard = ({ item, onClick }) => {
         'custom-finding': { color: 'border-gray-500' },
         'verifiable-claim': { color: 'border-blue-500' },
     };
-
     const style = cardStyles[card_type] || cardStyles['custom-finding'];
-
     const renderAnalysisContent = () => {
         if (!data.analysis) return null;
         switch (card_type) {
@@ -791,16 +778,13 @@ const UnifiedCard = ({ item, onClick }) => {
                 return <p>Analysis data present but no specific view configured.</p>
         }
     };
-
     return (
         <div onClick={onClick} className={`cursor-pointer bg-white rounded-lg shadow-md border-l-4 ${style.color} p-4 animate-fade-in mb-4`}>
             <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
                 <span>Topic: <span className="font-semibold">{data.topicTitle || 'General'}</span></span>
                 <span>Line: {data.lineNumber}</span>
             </div>
-            
             {data.transcriptSnippet && <p className="text-sm text-gray-500 italic mb-2 border-y py-2">"{data.transcriptSnippet}"</p>}
-            
             <div className="pl-2 text-gray-700">
                 {data.status === 'analyzing' && <div className="text-center text-gray-500 py-4">Analyzing...</div>}
                 {data.status === 'invalid_trigger' && <div className="text-center text-gray-500 py-4">Trigger dismissed after analysis.</div>}
