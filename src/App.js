@@ -3,19 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 
-// --- Custom Event Class to Mimic Threading Event ---
-class CustomEvent {
-    constructor() {
-        this._isSet = false;
-    }
-    set() {
-        this._isSet = true;
-    }
-    isSet() {
-        return this._isSet;
-    }
-}
-
 // --- Icon Components (No Changes) ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
@@ -148,8 +135,7 @@ const DebatePage = ({ user }) => {
     const audioWorkletNodeRef = useRef(null);
     const audioStreamRef = useRef(null);
     const isRecordingRef = useRef(false);
-    const streamRestartTimerRef = useRef(null);
-    const retryTimeoutRef = useRef(null); // Ref for the retry timer
+    const retryTimeoutRef = useRef(null);
     
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
@@ -197,13 +183,13 @@ const DebatePage = ({ user }) => {
             console.error("[FATAL] Max retries reached. Could not connect to WebSocket proxy.");
             alert("Could not connect to the transcription service after multiple attempts. Please check your connection and try again.");
             if (isRecordingRef.current) {
-                toggleRecording(); // This will call stopStream and clean up
+                toggleRecording();
             }
             return;
         }
 
         console.log(`[Connect] Attempting to connect... (Attempt ${retries + 1})`);
-        setInterimTranscript(`Reconnecting... (Attempt ${retries + 1})`);
+        setInterimTranscript(`Connecting... (Attempt ${retries + 1})`);
 
         const PROXY_URL = 'wss://debate-assist-467621.wl.r.appspot.com';
         const socket = new WebSocket(PROXY_URL);
@@ -224,11 +210,8 @@ const DebatePage = ({ user }) => {
             };
             socket.send(JSON.stringify(configMessage));
             
-            // FIX: Introduce a small delay before starting the audio stream
-            // This gives the server time to process the config message before
-            // receiving binary audio data, preventing a race condition.
             setTimeout(() => {
-                if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return; // Check if socket is still open
+                if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
                 
                 setInterimTranscript("Listening...");
                 const source = audioContextRef.current.createMediaStreamSource(audioStreamRef.current);
@@ -241,7 +224,7 @@ const DebatePage = ({ user }) => {
                     }
                 };
                 source.connect(workletNode).connect(audioContextRef.current.destination);
-            }, 250); // 250ms delay
+            }, 250);
         };
 
         socket.onmessage = async (event) => {
@@ -263,7 +246,6 @@ const DebatePage = ({ user }) => {
                         
                         console.log(`[FINAL] Speaker (${activeSpeaker}): "${finalTranscript}"`);
                         
-                        // --- CRITICAL CHANGE: Detailed error logging for function invocation ---
                         try {
                             const { data: { session } } = await supabase.auth.getSession();
                             if (!session) {
@@ -280,16 +262,12 @@ const DebatePage = ({ user }) => {
                                 user_id: user.id,
                             };
 
-                            console.log('[Invoke] Attempting to call transcription-service with payload:', payload);
-                            console.log('[Invoke] Using Authorization Header:', `Bearer ${session.accessToken.substring(0, 20)}...`);
-
                             const { data: fnData, error: fnError } = await supabase.functions.invoke('transcription-service', {
                                 body: payload,
                                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
                             });
                             
                             if (fnError) {
-                                // This is the most important log. It will show the full error object.
                                 console.error('[Invoke Error] Supabase function invocation failed.', fnError);
                                 alert(`Failed to process transcript. See browser developer console for full error details. Message: ${fnError.message}`);
                             } else {
@@ -300,7 +278,6 @@ const DebatePage = ({ user }) => {
                             console.error("[Invoke Catastrophe] An unexpected error occurred while trying to invoke the function:", e);
                             alert("A critical error occurred. Could not send transcript for processing.");
                         }
-                        // --- END CRITICAL CHANGE ---
 
                     } else {
                         setInterimTranscript(transcript);
@@ -311,7 +288,7 @@ const DebatePage = ({ user }) => {
         
         const handleConnectionError = () => {
             if (isRecordingRef.current) {
-                const delay = 1000 * Math.pow(2, retries); // Exponential backoff
+                const delay = 1000 * Math.pow(2, retries);
                 console.log(`[Connect] Connection failed. Retrying in ${delay}ms...`);
                 retryTimeoutRef.current = setTimeout(() => {
                     attemptConnection(retries + 1);
@@ -321,8 +298,6 @@ const DebatePage = ({ user }) => {
 
         socket.onclose = (event) => {
             console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-            // Code 1006 is an abnormal closure, often due to network issues or the proxy server terminating.
-            // We will attempt to reconnect if recording is still active.
             if (isRecordingRef.current) {
                  handleConnectionError();
             }
@@ -330,25 +305,13 @@ const DebatePage = ({ user }) => {
 
         socket.onerror = (error) => {
             console.error('[Proxy] WebSocket error:', error);
-            // An error will likely be followed by a close event, which will trigger the reconnection logic.
         };
-
-        // Clear any existing timer and set a new one
-        clearTimeout(streamRestartTimerRef.current);
-        streamRestartTimerRef.current = setTimeout(async () => {
-            if (isRecordingRef.current) {
-                console.log('[Stream] Proactively restarting stream to avoid timeout...');
-                await stopStream(false); // Don't clear audio resources
-                attemptConnection(); // Reconnect
-            }
-        }, 55000); // 55 seconds
     };
 
     const startStream = async () => {
         console.log('[Stream] Initializing audio resources...');
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-                // Using specific constraints for better performance
                 sampleRate: 16000,
                 channelCount: 1,
                 noiseSuppression: true,
@@ -356,36 +319,31 @@ const DebatePage = ({ user }) => {
             }});
             audioStreamRef.current = stream;
 
-            // Ensure the AudioContext is created with the correct sample rate
             const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             audioContextRef.current = audioContext;
             
-            // Ensure the worklet is loaded before we try to connect
             await audioContext.audioWorklet.addModule('audio-processor.js');
             
-            // Now that audio is ready, start the connection process
             attemptConnection();
 
         } catch (err) {
             console.error('[FATAL] Error getting user media:', err);
             alert(`Could not get microphone access: ${err.message}`);
             if (isRecordingRef.current) {
-                toggleRecording(); // Turn off the recording state
+                toggleRecording();
             }
         }
     };
 
-    const stopStream = async (cleanupAll = true) => {
+    const stopStream = async () => {
         console.log("[Stream] Stopping current transcription stream...");
         
-        clearTimeout(streamRestartTimerRef.current);
-        clearTimeout(retryTimeoutRef.current); // Clear any pending retries
+        clearTimeout(retryTimeoutRef.current);
 
         if (socketRef.current) {
-            // Set onclose to null to prevent reconnection logic from firing on a manual stop
             socketRef.current.onclose = null; 
             if (socketRef.current.readyState === WebSocket.OPEN) {
-                socketRef.current.close(1000, "User stopped recording"); // Normal closure
+                socketRef.current.close(1000, "User stopped recording");
             }
             socketRef.current = null;
         }
@@ -394,16 +352,13 @@ const DebatePage = ({ user }) => {
             audioWorkletNodeRef.current = null;
         }
         
-        // Only clean up audio resources if it's a full stop, not a proactive restart
-        if (cleanupAll) {
-            if (audioStreamRef.current) {
-                audioStreamRef.current.getTracks().forEach(track => track.stop());
-                audioStreamRef.current = null;
-            }
-            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-                await audioContextRef.current.close();
-                audioContextRef.current = null;
-            }
+        if (audioStreamRef.current) {
+            audioStreamRef.current.getTracks().forEach(track => track.stop());
+            audioStreamRef.current = null;
+        }
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            await audioContextRef.current.close();
+            audioContextRef.current = null;
         }
     };
     
@@ -417,7 +372,7 @@ const DebatePage = ({ user }) => {
             await startStream();
         } else {
             console.log("User stopped recording.");
-            await stopStream(true); // Full cleanup
+            await stopStream();
             setInterimTranscript('');
         }
     };
