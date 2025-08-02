@@ -221,18 +221,25 @@
                     },
                 };
                 socket.send(JSON.stringify(configMessage));
-                setInterimTranscript("Listening...");
+                
+                // FIX: Introduce a small delay before starting the audio stream
+                // This gives the server time to process the config message before
+                // receiving binary audio data, preventing a race condition.
+                setTimeout(() => {
+                    if (socket.readyState !== WebSocket.OPEN) return; // Check if socket is still open
+                    
+                    setInterimTranscript("Listening...");
+                    const source = audioContextRef.current.createMediaStreamSource(audioStreamRef.current);
+                    const workletNode = new AudioWorkletNode(audioContextRef.current, 'audio-processor');
+                    audioWorkletNodeRef.current = workletNode;
 
-                const source = audioContextRef.current.createMediaStreamSource(audioStreamRef.current);
-                const workletNode = new AudioWorkletNode(audioContextRef.current, 'audio-processor');
-                audioWorkletNodeRef.current = workletNode;
-
-                workletNode.port.onmessage = (event) => {
-                    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-                        socketRef.current.send(event.data);
-                    }
-                };
-                source.connect(workletNode).connect(audioContextRef.current.destination);
+                    workletNode.port.onmessage = (event) => {
+                        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                            socketRef.current.send(event.data);
+                        }
+                    };
+                    source.connect(workletNode).connect(audioContextRef.current.destination);
+                }, 200); // 200ms delay
             };
 
             socket.onmessage = async (event) => {
@@ -885,4 +892,3 @@
     };
 
     export default App;
-    
