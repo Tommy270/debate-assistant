@@ -30,7 +30,7 @@ const ExclamationTriangleIcon = ({ className }) => <svg className={className} xm
 const MagnifyingGlassIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
 const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.324-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 const LightBulbIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.007z" clipRule="evenodd" /></svg>;
+const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404.433 2.082-5.007z" clipRule="evenodd" /></svg>;
 
 // --- Main App Component ---
 const App = () => {
@@ -195,9 +195,8 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            // =================================================================
-            // FIXED: Using the actual deployed Google Cloud Function URL
-            // =================================================================
+            // Step 1: Fetch a short-lived access token from our backend function.
+            // This is a security best practice to avoid exposing long-lived credentials on the client.
             const GCF_TOKEN_URL = 'https://us-west1-debate-assist-467621.cloudfunctions.net/getSpeechToken';
             
             console.log('[Auth] Fetching access token from Google Cloud Function...');
@@ -215,9 +214,13 @@ const DebatePage = ({ user }) => {
             const { access_token } = data;
             console.log('[Auth] Successfully fetched access token.');
 
-            // Step 2: Connect directly to Google's WebSocket URL with the token.
-            const googleWsUrl = `wss://speech.googleapis.com/v1p1beta1/speech:streamingrecognize?access_token=${access_token}`;
-            console.log(`[Google] Connecting directly to WebSocket...`);
+            // =================================================================
+            // FIXED: Switched from 'v1p1beta1' to the stable 'v1' endpoint.
+            // This is the most likely fix for the 400 handshake error.
+            // The 'v1p1beta1' endpoint is for beta features like diarization.
+            // =================================================================
+            const googleWsUrl = `wss://speech.googleapis.com/v1/speech:streamingrecognize?access_token=${access_token}`;
+            console.log(`[Google] Connecting to WebSocket: ${googleWsUrl}`);
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
@@ -227,7 +230,7 @@ const DebatePage = ({ user }) => {
             const sampleRate = audioContext.sampleRate;
             console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
-            // Load the audio processor worklet
+            // Load the audio processor worklet from the public folder
             try {
                 await audioContext.audioWorklet.addModule('audio-processor.js');
             } catch (e) {
@@ -237,16 +240,14 @@ const DebatePage = ({ user }) => {
                 return;
             }
 
-            // This socket now connects directly to Google
+            // This socket connects directly to Google's Speech-to-Text API
             const socket = new WebSocket(googleWsUrl);
             socketRef.current = socket;
             
             socket.onopen = () => {
                 console.log('[Google] WebSocket opened successfully.');
                 
-                // =================================================================
-                // NEW: Simplified Speech API Configuration
-                // =================================================================
+                // This is the configuration message sent to Google to initialize the stream.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -254,12 +255,18 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            // --- DEBUGGING STEP ---
-                            // Speaker diarization is temporarily disabled to resolve the 400 error.
-                            // Once the basic connection works, you can try re-enabling this.
-                            // It's often the cause of handshake failures.
-                            // enable_speaker_diarization: true,
-                            // diarization_speaker_count: 2, // or min_speaker_count/max_speaker_count
+                            // =================================================================
+                            // NOTE ON DIARIZATION (Speaker Separation):
+                            // To re-enable speaker diarization, you must use the 'diarization_config' object below.
+                            // This feature requires the 'v1p1beta1' endpoint.
+                            // If you uncomment this, you MUST change the `googleWsUrl` above back to use 'v1p1beta1'.
+                            // The old `diarization_speaker_count` field is deprecated and will cause errors.
+                            // =================================================================
+                            // diarization_config: {
+                            //   enable_speaker_diarization: true,
+                            //   min_speaker_count: 2,
+                            //   max_speaker_count: 2,
+                            // },
                         },
                         interim_results: true,
                     },
@@ -268,17 +275,20 @@ const DebatePage = ({ user }) => {
                 socket.send(JSON.stringify(configMessage));
                 setInterimTranscript("Listening...");
 
-                // Start processing audio using the AudioWorklet
+                // Start processing audio from the microphone using the AudioWorklet
                 const source = audioContext.createMediaStreamSource(stream);
                 const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
                 audioWorkletNodeRef.current = workletNode;
 
+                // The worklet will send processed audio data back to this onmessage handler
                 workletNode.port.onmessage = (event) => {
+                    // Send the processed audio chunk over the WebSocket if it's open
                     if (socket.readyState === WebSocket.OPEN) {
                         socket.send(event.data);
                     }
                 };
 
+                // Connect the audio graph: Mic Source -> Worklet Processor -> Destination (optional, for monitoring)
                 source.connect(workletNode).connect(audioContext.destination);
             };
 
@@ -297,14 +307,14 @@ const DebatePage = ({ user }) => {
                         const transcript = result.alternatives[0].transcript;
                         
                         if (result.is_final) {
-                            setInterimTranscript(""); // Clear interim
+                            setInterimTranscript(""); // Clear interim text
                             
-                            // Since diarization is off, we use the manually selected speaker.
+                            // Since diarization is off, we use the manually selected speaker from the UI.
                             const identifiedSpeaker = activeSpeaker; 
 
                             console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
                             
-                            // Send final transcript to our backend for processing
+                            // Send final transcript to our Supabase backend for storage and analysis
                             supabase.functions.invoke('transcription-service', {
                                 body: {
                                     debate_id: liveDebate.id,
@@ -315,6 +325,7 @@ const DebatePage = ({ user }) => {
                             }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                         
                         } else {
+                            // This is an interim result, update the live display
                             setInterimTranscript(transcript);
                         }
                     }
@@ -324,7 +335,7 @@ const DebatePage = ({ user }) => {
             socket.onclose = (event) => {
                 console.log(`[Google] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
                 if (isRecording) {
-                    stopTranscription();
+                    stopTranscription(); // Ensure cleanup happens if closed unexpectedly
                 }
             };
 
@@ -343,7 +354,7 @@ const DebatePage = ({ user }) => {
             } else {
                 alert(`Error starting transcription: ${err.message}`);
             }
-            stopTranscription();
+            stopTranscription(); // Clean up on failure
         }
     };
 
@@ -353,22 +364,26 @@ const DebatePage = ({ user }) => {
         setIsRecording(false);
         setInterimTranscript('');
         
+        // Close the WebSocket connection if it exists and is open
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
             socketRef.current.close();
-            socketRef.current = null;
         }
+        socketRef.current = null;
 
+        // Disconnect the audio worklet
         if (audioWorkletNodeRef.current) {
             audioWorkletNodeRef.current.port.onmessage = null; // Remove listener
             audioWorkletNodeRef.current.disconnect();
             audioWorkletNodeRef.current = null;
         }
         
+        // Stop the microphone stream
         if (audioStreamRef.current) {
             audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
         }
 
+        // Close the AudioContext
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             await audioContextRef.current.close();
             audioContextRef.current = null;
