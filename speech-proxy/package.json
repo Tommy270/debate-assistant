@@ -1,11 +1,17 @@
-
 {
   "name": "speech-proxy",
   "version": "1.0.0",
+  "description": "WebSocket proxy for Google Speech-to-Text",
   "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@google-cloud/functions-framework": "^3.0.0",
-    "@google-cloud/speech": "^6.4.0",
+    "@google-cloud/speech": "^6.5.0",
     "ws": "^8.17.0"
   }
 }
