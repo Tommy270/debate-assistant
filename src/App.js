@@ -201,7 +201,6 @@
 
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                 audioContextRef.current = audioContext;
-                const sampleRate = audioContext.sampleRate;
                 
                 await audioContext.audioWorklet.addModule('audio-processor.js');
 
@@ -211,7 +210,11 @@
                         streaming_config: {
                             config: {
                                 encoding: 'LINEAR16',
-                                sample_rate_hertz: sampleRate,
+                                // FIX: Hardcode the sample rate to 16000, which is what our
+                                // audio-processor.js worklet is designed to output.
+                                // The browser's native sample rate (audioContext.sampleRate)
+                                // can vary, and this mismatch was likely causing the API error.
+                                sample_rate_hertz: 16000,
                                 language_code: 'en-US',
                                 enable_automatic_punctuation: true,
                             },
