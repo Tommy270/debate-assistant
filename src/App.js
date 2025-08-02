@@ -229,6 +229,8 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Proxy] WebSocket opened.');
                 
+                // *** MODIFIED FOR DEBUGGING ***
+                // Using a simpler configuration to rule out advanced features as the cause of the error.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -236,8 +238,9 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            enable_speaker_diarization: true,
-                            diarization_speaker_count: 2,
+                            // Diarization is temporarily disabled for testing
+                            // enable_speaker_diarization: true, 
+                            // diarization_speaker_count: 2,
                         },
                         interim_results: true,
                     },
@@ -275,26 +278,20 @@ const DebatePage = ({ user }) => {
                         const transcript = result.alternatives[0].transcript;
                         if (result.is_final) {
                             setInterimTranscript(""); // Clear interim
-                            const wordsInfo = result.alternatives[0].words;
-                            if (wordsInfo && wordsInfo.length > 0) {
-                                const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag;
-    
-                                if (!speakerTagMapRef.current[speakerTag]) {
-                                    speakerTagMapRef.current[speakerTag] = activeSpeaker;
-                                }
-                                const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
-    
-                                console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
-                                
-                                supabase.functions.invoke('transcription-service', {
-                                    body: {
-                                        debate_id: liveDebate.id,
-                                        speaker: identifiedSpeaker,
-                                        transcript: transcript.trim(),
-                                        user_id: user.id,
-                                    },
-                                }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
-                            }
+                            
+                            // Since diarization is off, we can't get speaker tags.
+                            // We will assign the active speaker manually.
+                            const identifiedSpeaker = activeSpeaker;
+                            console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
+                            
+                            supabase.functions.invoke('transcription-service', {
+                                body: {
+                                    debate_id: liveDebate.id,
+                                    speaker: identifiedSpeaker,
+                                    transcript: transcript.trim(),
+                                    user_id: user.id,
+                                },
+                            }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                         } else {
                             setInterimTranscript(transcript);
                         }
@@ -475,7 +472,7 @@ const DebatePage = ({ user }) => {
                          </p>
                      </div>
                     <p className="text-xs text-gray-500 text-center">
-                        Powered by Google Speech-to-Text. Diarization is active.
+                        Powered by Google Speech-to-Text.
                     </p>
                 </div>
 
