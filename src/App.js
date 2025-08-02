@@ -2,7 +2,6 @@
     import { supabase } from './supabaseClient';
 
     // --- Custom Event Class to Mimic Threading Event ---
-    // This remains useful for signaling the audio processing loop to stop.
     class CustomEvent {
         constructor() {
             this._isSet = false;
@@ -142,13 +141,12 @@
         const [isRecording, setIsRecording] = useState(false);
         const [interimTranscript, setInterimTranscript] = useState('');
         
-        // Refs for audio processing, WebSocket, and stream management
         const socketRef = useRef(null);
         const audioContextRef = useRef(null);
         const audioWorkletNodeRef = useRef(null);
         const audioStreamRef = useRef(null);
-        const isRecordingRef = useRef(false); // Use a ref for the "true" recording status to avoid stale closures
-        const streamRestartTimerRef = useRef(null); // Timer to proactively restart the stream
+        const isRecordingRef = useRef(false);
+        const streamRestartTimerRef = useRef(null);
         
         const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
@@ -190,9 +188,6 @@
             return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
         }, [liveDebate]);
 
-
-        // REFACTORED: This function now ONLY manages the stream connection and audio resources.
-        // It does not control the main `isRecording` state.
         const startStream = async () => {
             console.log('[Stream] Starting new transcription stream...');
             setInterimTranscript("Initializing...");
@@ -238,12 +233,12 @@
                     source.connect(workletNode).connect(audioContext.destination);
                 };
 
-                socket.onmessage = (event) => {
+                socket.onmessage = async (event) => { // Made this async
                     const data = JSON.parse(event.data);
                     if (data.error) {
                         console.error("[Proxy] Error message from backend:", data.error);
                         alert(`API Error: ${data.error.message}. Stopping transcription.`);
-                        toggleRecording(); // Stop everything on error
+                        toggleRecording();
                         return;
                     }
                     if (data.results && data.results.length > 0) {
@@ -262,8 +257,37 @@
                                     transcript: finalTranscript,
                                     user_id: user.id,
                                 };
-                                supabase.functions.invoke('transcription-service', { body: payload })
-                                    .catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+
+                                // --- START: MODIFIED SECTION ---
+                                console.log('[DEBUG] Attempting to invoke transcription-service...');
+                                
+                                // Get the latest session to ensure the token is fresh
+                                const { data: { session } } = await supabase.auth.getSession();
+                                
+                                if (!session) {
+                                    console.error("[AUTH] No active session found. Cannot invoke function.");
+                                    alert("Your session has expired. Please log in again.");
+                                    toggleRecording();
+                                    return;
+                                }
+
+                                const { data: fnData, error: fnError } = await supabase.functions.invoke('transcription-service', {
+                                    body: payload,
+                                    headers: {
+                                        // Explicitly set the Authorization header. This is crucial.
+                                        'Authorization': `Bearer ${session.accessToken}`
+                                    }
+                                });
+
+                                if (fnError) {
+                                    console.error('[DEBUG] Error invoking transcription-service:', fnError);
+                                    // Provide more specific feedback to the user
+                                    alert(`Failed to process transcript. Check the developer console for details. Error: ${fnError.message}`);
+                                } else {
+                                    console.log('[DEBUG] Successfully invoked transcription-service. Response:', fnData);
+                                }
+                                // --- END: MODIFIED SECTION ---
+
                             } else {
                                 setInterimTranscript(transcript);
                             }
@@ -279,11 +303,10 @@
                     console.error('[Proxy] WebSocket error:', error);
                     alert("A WebSocket error occurred. See console for details. Stopping transcription.");
                     if (isRecordingRef.current) {
-                        toggleRecording(); // Stop everything on error
+                        toggleRecording();
                     }
                 };
 
-                // NEW: Proactively restart the stream before the timeout (e.g., 55 seconds)
                 streamRestartTimerRef.current = setTimeout(async () => {
                     if (isRecordingRef.current) {
                         console.log('[Stream] Proactively restarting stream to avoid timeout...');
@@ -295,18 +318,15 @@
             } catch (err) {
                 console.error('[FATAL] Error starting transcription stream:', err);
                 alert(`Error starting transcription: ${err.message}`);
-                // Ensure we transition back to a non-recording state if setup fails
                 if (isRecordingRef.current) {
                     toggleRecording();
                 }
             }
         };
 
-        // REFACTORED: This function now ONLY manages the stream connection and audio resources.
         const stopStream = async () => {
             console.log("[Stream] Stopping current transcription stream...");
             
-            // NEW: Clear the proactive restart timer
             clearTimeout(streamRestartTimerRef.current);
 
             if (socketRef.current) {
@@ -329,11 +349,10 @@
             }
         };
         
-        // REFACTORED: This is now the single point of control for the user's recording intent.
         const toggleRecording = async () => {
             const nextIsRecording = !isRecording;
             setIsRecording(nextIsRecording);
-            isRecordingRef.current = nextIsRecording; // Keep ref in sync
+            isRecordingRef.current = nextIsRecording;
 
             if (nextIsRecording) {
                 console.log("User started recording.");
@@ -370,7 +389,7 @@
 
         const handleStopDebate = async () => {
             if (isRecording) {
-                await toggleRecording(); // Use the main toggle to stop recording
+                await toggleRecording();
             }
             setPageState('setup');
             setLiveDebate(null);
