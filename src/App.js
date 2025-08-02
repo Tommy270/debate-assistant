@@ -197,12 +197,19 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            // Get the full REST URL from the supabase client.
-            const restUrl = new URL(supabase.rest.url);
-            // Construct the WebSocket URL using the hostname. This is more robust.
-            const wsUrl = `wss://${restUrl.hostname}/functions/v1/speech-to-text-websocket`;
-            
-            console.log(`[Proxy] Connecting to WebSocket at: ${wsUrl}`);
+            // *** MODIFIED FOR NEW ARCHITECTURE ***
+            // Step 1: Fetch the access token from our new Supabase function.
+            console.log('[Auth] Fetching access token...');
+            const { data, error } = await supabase.functions.invoke('speech-to-text-websocket');
+            if (error || !data.access_token) {
+                throw new Error(`Failed to get access token: ${error?.message || 'No token returned'}`);
+            }
+            const { access_token } = data;
+            console.log('[Auth] Successfully fetched access token.');
+
+            // Step 2: Connect directly to Google's WebSocket URL with the token.
+            const googleWsUrl = `wss://speech.googleapis.com/v1p1beta1/speech:streamingrecognize?access_token=${access_token}`;
+            console.log(`[Google] Connecting directly to WebSocket at: ${googleWsUrl}`);
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
@@ -214,7 +221,6 @@ const DebatePage = ({ user }) => {
 
             // Load the audio processor worklet
             try {
-                // Assumes audio-processor.js is in the public folder
                 await audioContext.audioWorklet.addModule('audio-processor.js');
             } catch (e) {
                 console.error('Error loading audio worklet:', e);
@@ -223,11 +229,12 @@ const DebatePage = ({ user }) => {
                 return;
             }
 
-            const socket = new WebSocket(wsUrl);
+            // This socket now connects directly to Google
+            const socket = new WebSocket(googleWsUrl);
             socketRef.current = socket;
             
             socket.onopen = () => {
-                console.log('[Proxy] WebSocket opened.');
+                console.log('[Google] WebSocket opened successfully.');
                 
                 const configMessage = {
                     streaming_config: {
@@ -250,7 +257,6 @@ const DebatePage = ({ user }) => {
                 const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
                 audioWorkletNodeRef.current = workletNode;
 
-                // The worklet will post messages with audio data. Send them to the WebSocket.
                 workletNode.port.onmessage = (event) => {
                     if (socket.readyState === WebSocket.OPEN) {
                         socket.send(event.data);
@@ -263,8 +269,8 @@ const DebatePage = ({ user }) => {
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.error) {
-                    console.error("[Proxy] Error message from upstream:", data.error);
-                    alert(`Google API Error (via proxy): ${data.error.message}. Please check console.`);
+                    console.error("[Google] Error message from upstream:", data.error);
+                    alert(`Google API Error: ${data.error.message}. Please check console.`);
                     stopTranscription();
                     return;
                 }
@@ -303,18 +309,15 @@ const DebatePage = ({ user }) => {
             };
             
             socket.onclose = (event) => {
-                console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-                if (event.code === 1011 && event.reason.includes("upstream")) {
-                    alert("Connection to speech service failed. Please check your Google Cloud project settings (IAM & API) and the Supabase function logs.");
-                }
+                console.log(`[Google] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
                 if (isRecording) {
                     stopTranscription();
                 }
             };
 
             socket.onerror = (error) => {
-                console.error('[Proxy] WebSocket error:', error);
-                alert("A WebSocket error occurred. This could be due to a network issue or a server-side problem. See console for details.");
+                console.error('[Google] WebSocket error:', error);
+                alert("A direct WebSocket error occurred with Google's service. See console for details.");
                 if (isRecording) {
                     stopTranscription();
                 }
