@@ -145,9 +145,9 @@ const DebatePage = ({ user }) => {
     // Refs for audio processing and WebSocket
     const socketRef = useRef(null);
     const audioContextRef = useRef(null);
-    const audioProcessorRef = useRef(null);
+    // Ref for the AudioWorkletNode
+    const audioWorkletNodeRef = useRef(null);
     const audioStreamRef = useRef(null);
-    const stopEventRef = useRef(null);
     const speakerTagMapRef = useRef({});
     
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
@@ -190,16 +190,16 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
+    // Rewritten startTranscription with AudioWorkletNode
     const startTranscription = async () => {
         if (isRecording) return;
         setIsRecording(true);
         setInterimTranscript("Initializing...");
 
         try {
-            // *** FIX: Correctly construct the WebSocket URL ***
-            // 1. Get the full REST URL from the supabase client.
+            // Get the full REST URL from the supabase client.
             const restUrl = new URL(supabase.rest.url);
-            // 2. Construct the WebSocket URL using the hostname.
+            // Construct the WebSocket URL using the hostname. This is more robust.
             const wsUrl = `wss://${restUrl.hostname}/functions/v1/speech-to-text-websocket`;
             
             console.log(`[Proxy] Connecting to WebSocket at: ${wsUrl}`);
@@ -207,19 +207,28 @@ const DebatePage = ({ user }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
 
-            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            const sampleRate = audioContextRef.current.sampleRate;
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            audioContextRef.current = audioContext;
+            const sampleRate = audioContext.sampleRate;
             console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
-            
-            stopEventRef.current = new CustomEvent();
 
-            // Establish WebSocket connection to YOUR PROXY FUNCTION
+            // Load the audio processor worklet
+            try {
+                // Assumes audio-processor.js is in the public folder
+                await audioContext.audioWorklet.addModule('audio-processor.js');
+            } catch (e) {
+                console.error('Error loading audio worklet:', e);
+                alert('Failed to load audio processor. Please ensure audio-processor.js is in the public folder.');
+                setIsRecording(false);
+                return;
+            }
+
             const socket = new WebSocket(wsUrl);
             socketRef.current = socket;
             
             socket.onopen = () => {
                 console.log('[Proxy] WebSocket opened.');
-                // Send the configuration message TO YOUR PROXY.
+                
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -236,23 +245,19 @@ const DebatePage = ({ user }) => {
                 socket.send(JSON.stringify(configMessage));
                 setInterimTranscript("Listening...");
 
-                // Start processing audio
-                const source = audioContextRef.current.createMediaStreamSource(stream);
-                const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-                audioProcessorRef.current = processor;
+                // Start processing audio using the AudioWorklet
+                const source = audioContext.createMediaStreamSource(stream);
+                const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+                audioWorkletNodeRef.current = workletNode;
 
-                processor.onaudioprocess = (e) => {
-                    if (socket.readyState !== 1 || stopEventRef.current.isSet()) return;
-                    
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    const downsampledBuffer = new Int16Array(inputData.length);
-                    for (let i = 0; i < inputData.length; i++) {
-                        downsampledBuffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                // The worklet will post messages with audio data. Send them to the WebSocket.
+                workletNode.port.onmessage = (event) => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(event.data);
                     }
-                    socket.send(downsampledBuffer.buffer);
                 };
-                source.connect(processor);
-                processor.connect(audioContextRef.current.destination);
+
+                source.connect(workletNode).connect(audioContext.destination);
             };
 
             socket.onmessage = (event) => {
@@ -290,7 +295,6 @@ const DebatePage = ({ user }) => {
                                     },
                                 }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                             }
-
                         } else {
                             setInterimTranscript(transcript);
                         }
@@ -300,50 +304,61 @@ const DebatePage = ({ user }) => {
             
             socket.onclose = (event) => {
                 console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-                if (isRecording) stopTranscription();
+                if (event.code === 1011 && event.reason.includes("upstream")) {
+                    alert("Connection to speech service failed. Please check your Google Cloud project settings (IAM & API) and the Supabase function logs.");
+                }
+                if (isRecording) {
+                    stopTranscription();
+                }
             };
 
             socket.onerror = (error) => {
                 console.error('[Proxy] WebSocket error:', error);
-                alert("A WebSocket error occurred with the proxy service. See console for details.");
-                stopTranscription();
+                alert("A WebSocket error occurred. This could be due to a network issue or a server-side problem. See console for details.");
+                if (isRecording) {
+                    stopTranscription();
+                }
             };
 
         } catch (err) {
             console.error('[FATAL] Error starting transcription:', err);
-            alert(`Error starting transcription: ${err.message}`);
-            stopTranscription();
+            if (err.name === 'NotAllowedError') {
+                 alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
+            } else {
+                 alert(`Error starting transcription: ${err.message}`);
+            }
+            stopTranscription(); 
         }
     };
 
+    // Rewritten stopTranscription to clean up AudioWorkletNode
     const stopTranscription = async () => {
-        if (!isRecording) return;
+        if (!isRecording && !audioContextRef.current) return;
         console.log("[INFO] Stopping transcription...");
-
-        if (stopEventRef.current) stopEventRef.current.set();
+        setIsRecording(false);
+        setInterimTranscript('');
         
-        if (socketRef.current && socketRef.current.readyState === 1) {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
             socketRef.current.close();
             socketRef.current = null;
         }
 
-        if (audioProcessorRef.current) {
-            audioProcessorRef.current.disconnect();
-            audioProcessorRef.current = null;
+        if (audioWorkletNodeRef.current) {
+            audioWorkletNodeRef.current.port.onmessage = null; // Remove listener
+            audioWorkletNodeRef.current.disconnect();
+            audioWorkletNodeRef.current = null;
         }
         
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-            await audioContextRef.current.close();
-            audioContextRef.current = null;
-        }
-
         if (audioStreamRef.current) {
             audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
         }
 
-        setIsRecording(false);
-        setInterimTranscript('');
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            await audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+        
         speakerTagMapRef.current = {};
     };
     
@@ -456,7 +471,7 @@ const DebatePage = ({ user }) => {
                     <p className="text-sm font-bold text-gray-600 block mb-2 text-center">Live Transcription Status</p>
                      <div className="text-center my-2 p-3 bg-gray-100 rounded-md min-h-[60px] flex items-center justify-center">
                          <p className="font-mono text-gray-700 text-sm">
-                             {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
+                              {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
                          </p>
                      </div>
                     <p className="text-xs text-gray-500 text-center">
@@ -503,7 +518,6 @@ const DebatePage = ({ user }) => {
     );
 };
 
-// --- Other Components ---
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
