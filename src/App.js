@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 
-// --- Supabase Client Setup ---
-// It's better to initialize this once outside the component.
-const supabaseUrl = 'https://juhemwzntxyxxtvpygbu.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1aGVtd3pudHh5eHR2cHlnYnUiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcyMTQ4NTg4MywiZXhwIjoyMDM3MDYxODgzfQ.W0T2h5Ol2xm_xsT5V4w2bZp2-f32f3t1f8i_y7Jc-KE';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+// --- Custom Event Class to Mimic Threading Event ---
+// This remains useful for signaling the audio processing loop to stop.
+class CustomEvent {
+    constructor() {
+        this._isSet = false;
+    }
+    set() {
+        this._isSet = true;
+    }
+    isSet() {
+        return this._isSet;
+    }
+}
 
 // --- Icon Components ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
@@ -190,7 +197,8 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            // Step 1: Fetch the access token from our Supabase function.
+            // *** MODIFIED FOR NEW ARCHITECTURE ***
+            // Step 1: Fetch the access token from our new Supabase function.
             console.log('[Auth] Fetching access token...');
             const { data, error } = await supabase.functions.invoke('speech-to-text-websocket');
             if (error || !data.access_token) {
@@ -228,8 +236,6 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Google] WebSocket opened successfully.');
                 
-                // *** MODIFIED CONFIGURATION ***
-                // Using the modern `diarization_config` object instead of the deprecated `diarization_speaker_count`.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -237,12 +243,8 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            enable_speaker_diarization: true, // This must be true to enable the feature
-                            diarization_config: {
-                                enable_speaker_diarization: true, // This is also required inside the config object
-                                min_speaker_count: 2,
-                                max_speaker_count: 2,
-                            },
+                            enable_speaker_diarization: true,
+                            diarization_speaker_count: 2,
                         },
                         interim_results: true,
                     },
@@ -324,9 +326,9 @@ const DebatePage = ({ user }) => {
         } catch (err) {
             console.error('[FATAL] Error starting transcription:', err);
             if (err.name === 'NotAllowedError') {
-                alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
+                 alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
             } else {
-                alert(`Error starting transcription: ${err.message}`);
+                 alert(`Error starting transcription: ${err.message}`);
             }
             stopTranscription(); 
         }
