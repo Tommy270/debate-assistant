@@ -168,6 +168,7 @@ const DebatePage = ({ user }) => {
         const fetchInitialData = async () => {
             const { data: topicsData, error: topicsError } = await supabase.from('topics').select('*').eq('debate_id', liveDebate.id);
             if (topicsError) console.error('Error fetching topics:', topicsError); else setTopics(topicsData || []);
+            // Corrected the select query to include the new 'speaker' column
             const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text, speaker').eq('debate_id', liveDebate.id).order('line_number');
             if (transcriptError) console.error('Error fetching transcript lines:', transcriptError); else setTranscriptLines(transcriptData || []);
         };
@@ -195,17 +196,10 @@ const DebatePage = ({ user }) => {
 
         try {
             // =================================================================
-            // NEW: Call Google Cloud Function for Token
+            // FIXED: Using the actual deployed Google Cloud Function URL
             // =================================================================
-            // IMPORTANT: Replace this with the trigger URL from your GCF deployment
-            const GCF_TOKEN_URL = 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE';
+            const GCF_TOKEN_URL = 'https://us-west1-debate-assist-467621.cloudfunctions.net/getSpeechToken';
             
-            if (GCF_TOKEN_URL === 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE') {
-                alert("CRITICAL: You must replace 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE' in App.js with your actual Google Cloud Function URL.");
-                setIsRecording(false);
-                return;
-            }
-
             console.log('[Auth] Fetching access token from Google Cloud Function...');
             const response = await fetch(GCF_TOKEN_URL, { method: 'POST' });
 

@@ -84,6 +84,7 @@ CREATE TABLE public.transcript_lines (
     debate_id UUID NOT NULL REFERENCES public.debates(id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL,
     text TEXT NOT NULL,
+    speaker TEXT;
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (debate_id, line_number)
 );
@@ -215,3 +216,4 @@ CREATE POLICY "Allow service roles to manage the queue" ON public.analysis_queue
 
 -- Enable Realtime on key tables
 ALTER PUBLICATION supabase_realtime ADD TABLE public.analysis_cards, public.topics, public.transcript_lines;
+
