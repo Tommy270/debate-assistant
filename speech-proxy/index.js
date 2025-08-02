@@ -1,8 +1,11 @@
 // File: speech-proxy/index.js
+// Description: This updated proxy uses the official Google Cloud Speech client library
+// to ensure a stable and correct connection to the Speech-to-Text API.
 
 const functions = require('@google-cloud/functions-framework');
-const { GoogleAuth } = require('google-auth-library');
 const WebSocket = require('ws');
+// Import the official Google Speech client
+const { SpeechClient } = require('@google-cloud/speech');
 
 // Create a WebSocket server. This server will handle incoming connections from your React app.
 const wss = new WebSocket.Server({ noServer: true });
@@ -10,95 +13,83 @@ const wss = new WebSocket.Server({ noServer: true });
 // This is the main entry point for the HTTP-triggered Cloud Function.
 // It will upgrade the incoming HTTP request to a WebSocket connection.
 functions.http('speechProxy', (req, res) => {
-  // Use the 'upgrade' event to hook into the request.
-  res.socket.server.on('upgrade', (request, socket, head) => {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      // When the upgrade is successful, the server emits a 'connection' event.
-      wss.emit('connection', ws, request);
+    // Use the 'upgrade' event to hook into the request.
+    res.socket.server.on('upgrade', (request, socket, head) => {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            // When the upgrade is successful, the server emits a 'connection' event.
+            wss.emit('connection', ws, request);
+        });
     });
-  });
 });
 
 // This event listener handles each new connection from your React app.
-wss.on('connection', async (clientWs) => {
-  console.log('[Proxy] Client connected.');
+wss.on('connection', (clientWs) => {
+    console.log('[Proxy] Client connected.');
 
-  let googleWs = null;
-  let googleStreamActive = false;
-
-  try {
-    // Step 1: Authenticate and get an access token for the Speech API.
-    // This is done on the backend, so the token is never exposed to the client.
-    console.log('[Proxy] Generating Google Speech API token...');
-    const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-speech' });
-    const client = await auth.getClient();
-    const accessToken = await client.getAccessToken();
-    console.log('[Proxy] Successfully generated token.');
-
-    // Step 2: Establish the backend WebSocket connection to Google's Speech API.
-    const googleWsUrl = `wss://speech.googleapis.com/v1/speech:streamingrecognize?access_token=${accessToken.token}`;
-    googleWs = new WebSocket(googleWsUrl);
-
-    // --- Event Handlers for Google WebSocket ---
-
-    googleWs.on('open', () => {
-      console.log('[Proxy] Connection to Google Speech API opened.');
-      googleStreamActive = true;
-    });
-
-    googleWs.on('message', (data) => {
-      // Message from Google -> forward to the client (React app)
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.send(data.toString());
-      }
-    });
-
-    googleWs.on('close', (code, reason) => {
-      console.log(`[Proxy] Connection to Google closed. Code: ${code}, Reason: ${reason}`);
-      googleStreamActive = false;
-      // Close the client connection when the Google connection closes.
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.close();
-      }
-    });
-
-    googleWs.on('error', (error) => {
-      console.error('[Proxy] Error from Google WebSocket:', error);
-      googleStreamActive = false;
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.close();
-      }
-    });
-
-    // --- Event Handlers for Client (React App) WebSocket ---
+    let recognizeStream = null;
+    // Create a new SpeechClient instance for each connection.
+    const speechClient = new SpeechClient();
 
     clientWs.on('message', (message) => {
-      // Message from client -> forward to Google
-      if (googleStreamActive && googleWs.readyState === WebSocket.OPEN) {
-        googleWs.send(message);
-      }
+        // The first message from the client is always the JSON configuration.
+        // All subsequent messages are binary audio data.
+        try {
+            // Attempt to parse the message as JSON.
+            const msg = JSON.parse(message);
+            
+            // If parsing succeeds, it's the configuration message.
+            const requestConfig = {
+                config: msg.streaming_config.config,
+                interimResults: msg.streaming_config.interim_results,
+            };
+
+            console.log('[Proxy] Received configuration from client:', JSON.stringify(requestConfig.config, null, 2));
+
+            // Now that we have the config, create the streaming recognize request to Google.
+            recognizeStream = speechClient
+                .streamingRecognize(requestConfig)
+                .on('error', (error) => {
+                    console.error('[Google] Error from recognizeStream:', error);
+                    // Notify the client of the error and close the connection.
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                        clientWs.send(JSON.stringify({ error: { message: `Google Speech API Error: ${error.message}` } }));
+                        clientWs.close();
+                    }
+                })
+                .on('data', (data) => {
+                    // Data from Google (transcription results) -> forward to the client.
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                        clientWs.send(JSON.stringify(data));
+                    }
+                });
+            
+            console.log('[Proxy] Successfully established stream to Google Speech API.');
+
+        } catch (error) {
+            // If JSON.parse fails, we assume it's binary audio data.
+            if (recognizeStream) {
+                // Forward the audio data to the Google stream.
+                recognizeStream.write(message);
+            } else {
+                // This case should not happen if the client sends config first.
+                console.warn('[Proxy] Received audio data before configuration was sent. Discarding.');
+            }
+        }
     });
 
     clientWs.on('close', () => {
-      console.log('[Proxy] Client disconnected.');
-      // Close the Google connection when the client disconnects.
-      if (googleStreamActive && googleWs.readyState === WebSocket.OPEN) {
-        googleWs.close();
-      }
+        console.log('[Proxy] Client disconnected.');
+        // If the client disconnects, properly end the stream to Google.
+        if (recognizeStream) {
+            recognizeStream.end();
+        }
     });
 
     clientWs.on('error', (error) => {
-      console.error('[Proxy] Error from client WebSocket:', error);
-      if (googleStreamActive && googleWs.readyState === WebSocket.OPEN) {
-        googleWs.close();
-      }
+        console.error('[Proxy] Error from client WebSocket:', error);
+        // If there's a client-side error, end the stream to Google.
+        if (recognizeStream) {
+            recognizeStream.end();
+        }
     });
-
-  } catch (error) {
-    console.error('[Proxy] FATAL: Failed to establish connection to Google:', error);
-    // If we can't connect to Google, close the client connection.
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.close();
-    }
-  }
 });

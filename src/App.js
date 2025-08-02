@@ -194,11 +194,6 @@ const DebatePage = ({ user }) => {
         setInterimTranscript("Initializing...");
 
         try {
-            // =================================================================
-            // FINAL FIX: Connect to the underlying Cloud Run service URL directly.
-            // This bypasses the Cloud Function proxy which can interfere with WebSocket handshakes.
-            // Remember to use 'wss' (WebSocket Secure) protocol.
-            // =================================================================
             const PROXY_URL = 'wss://speechproxy-stnydi4weq-uw.a.run.app';
             
             console.log(`[Proxy] Connecting to WebSocket proxy at ${PROXY_URL}...`);
@@ -230,7 +225,6 @@ const DebatePage = ({ user }) => {
                     },
                 };
 
-                // Send the configuration message to our proxy, which will forward it to Google.
                 socket.send(JSON.stringify(configMessage));
                 setInterimTranscript("Listening...");
 
@@ -240,14 +234,13 @@ const DebatePage = ({ user }) => {
 
                 workletNode.port.onmessage = (event) => {
                     if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(event.data); // Send audio data to the proxy
+                        socket.send(event.data);
                     }
                 };
 
                 source.connect(workletNode).connect(audioContext.destination);
             };
 
-            // This handler now receives messages forwarded from our proxy.
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.error) {
@@ -264,16 +257,29 @@ const DebatePage = ({ user }) => {
                         
                         if (result.is_final) {
                             setInterimTranscript("");
-                            const identifiedSpeaker = activeSpeaker; 
-                            console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
+                            const identifiedSpeaker = activeSpeaker;
+                            const finalTranscript = transcript.trim();
+
+                            // FIX: Guard against sending empty transcripts to the backend.
+                            if (!finalTranscript) {
+                                console.log('[INFO] Ignoring empty final transcript.');
+                                return;
+                            }
                             
+                            console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${finalTranscript}"`);
+                            
+                            const payload = {
+                                debate_id: liveDebate.id,
+                                speaker: identifiedSpeaker,
+                                transcript: finalTranscript,
+                                user_id: user.id,
+                            };
+                            
+                            // DEBUG: Log the payload before sending it to the function.
+                            console.log('[DEBUG] Invoking transcription-service with payload:', JSON.stringify(payload, null, 2));
+
                             supabase.functions.invoke('transcription-service', {
-                                body: {
-                                    debate_id: liveDebate.id,
-                                    speaker: identifiedSpeaker,
-                                    transcript: transcript.trim(),
-                                    user_id: user.id,
-                                },
+                                body: payload,
                             }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                         
                         } else {
@@ -450,11 +456,11 @@ const DebatePage = ({ user }) => {
                 
                 <div className="border-t pt-4 mt-4">
                     <p className="text-sm font-bold text-gray-600 block mb-2 text-center">Live Transcription Status</p>
-                     <div className="text-center my-2 p-3 bg-gray-100 rounded-md min-h-[60px] flex items-center justify-center">
-                         <p className="font-mono text-gray-700 text-sm">
-                              {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
-                         </p>
-                     </div>
+                       <div className="text-center my-2 p-3 bg-gray-100 rounded-md min-h-[60px] flex items-center justify-center">
+                           <p className="font-mono text-gray-700 text-sm">
+                                 {interimTranscript || (isRecording ? "Listening..." : "Recording Paused")}
+                           </p>
+                       </div>
                     <p className="text-xs text-gray-500 text-center">
                         Speech-to-Text via Backend Proxy.
                     </p>
