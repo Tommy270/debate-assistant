@@ -16,21 +16,21 @@ class CustomEvent {
 }
 
 // --- Icon Components ---
-const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
-const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
-const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174-.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
-const ArrowUpIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
-const SparklesIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM18 13.5l.375 1.5L18 16.5l-.375-1.5-.375-1.5.375-1.5.375 1.5z" /></svg>;
-const ShieldCheckIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
-const HandIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15l3-3m0 0l-3-3m3 3h-7.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const UserCircleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-const HomeIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>;
-const ArrowLeftIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>;
-const ExclamationTriangleIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
-const MagnifyingGlassIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
-const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.324-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-const LightBulbIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const StarIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404.433 2.082-5.007z" clipRule="evenodd" /></svg>;
+const MicIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
+const StopIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
+const BalanceIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174-.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
+const ArrowUpIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
+const SparklesIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM18 13.5l.375 1.5L18 16.5l-.375-1.5-.375-1.5.375-1.5.375 1.5z" /></svg>;
+const ShieldCheckIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
+const HandIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15l3-3m0 0l-3-3m3 3h-7.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+const UserCircleIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+const HomeIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>;
+const ArrowLeftIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>;
+const ExclamationTriangleIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
+const MagnifyingGlassIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
+const Cog6ToothIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.324-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+const LightBulbIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a7.5 7.5 0 01-7.5 0c-1.433-.47-2.7-1.151-3.75-2.006M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+const StarIcon = ({ className }) => <svg className={className} xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404.433 2.082-5.007z" clipRule="evenodd" /></svg>;
 
 // --- Main App Component ---
 const App = () => {
@@ -168,7 +168,6 @@ const DebatePage = ({ user }) => {
         const fetchInitialData = async () => {
             const { data: topicsData, error: topicsError } = await supabase.from('topics').select('*').eq('debate_id', liveDebate.id);
             if (topicsError) console.error('Error fetching topics:', topicsError); else setTopics(topicsData || []);
-            // Corrected the select query to include the new 'speaker' column
             const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text, speaker').eq('debate_id', liveDebate.id).order('line_number');
             if (transcriptError) console.error('Error fetching transcript lines:', transcriptError); else setTranscriptLines(transcriptData || []);
         };
@@ -189,38 +188,22 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
+    // =================================================================
+    // REFACTORED: This function now connects to our backend proxy instead of Google directly.
+    // =================================================================
     const startTranscription = async () => {
         if (isRecording) return;
         setIsRecording(true);
         setInterimTranscript("Initializing...");
 
         try {
-            // Step 1: Fetch a short-lived access token from our backend function.
-            // This is a security best practice to avoid exposing long-lived credentials on the client.
-            const GCF_TOKEN_URL = 'https://us-west1-debate-assist-467621.cloudfunctions.net/getSpeechToken';
+            // IMPORTANT: Replace this with the trigger URL of your deployed 'speechProxy' Cloud Function.
+            // Remember to use 'wss' (WebSocket Secure) protocol.
+            const PROXY_URL = 'wss://us-west1-debate-assist-467621.cloudfunctions.net/speechProxy';
             
-            console.log('[Auth] Fetching access token from Google Cloud Function...');
-            const response = await fetch(GCF_TOKEN_URL, { method: 'POST' });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response from GCF' }));
-                throw new Error(`Failed to get access token from GCF: ${errorData.error || response.statusText}`);
-            }
-
-            const data = await response.json();
-            if (!data.access_token) {
-                throw new Error('Access token not found in the response from GCF.');
-            }
-            const { access_token } = data;
-            console.log('[Auth] Successfully fetched access token.');
-
-            // =================================================================
-            // FIXED: Switched from 'v1p1beta1' to the stable 'v1' endpoint.
-            // This is the most likely fix for the 400 handshake error.
-            // The 'v1p1beta1' endpoint is for beta features like diarization.
-            // =================================================================
-            const googleWsUrl = `wss://speech.googleapis.com/v1/speech:streamingrecognize?access_token=${access_token}`;
-            console.log(`[Google] Connecting to WebSocket: ${googleWsUrl}`);
+            console.log(`[Proxy] Connecting to WebSocket proxy at ${PROXY_URL}...`);
+            const socket = new WebSocket(PROXY_URL);
+            socketRef.current = socket;
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
@@ -230,24 +213,11 @@ const DebatePage = ({ user }) => {
             const sampleRate = audioContext.sampleRate;
             console.log(`[Audio] Context created with sample rate: ${sampleRate}`);
 
-            // Load the audio processor worklet from the public folder
-            try {
-                await audioContext.audioWorklet.addModule('audio-processor.js');
-            } catch (e) {
-                console.error('Error loading audio worklet:', e);
-                alert('Failed to load audio processor. Please ensure audio-processor.js is in the public folder.');
-                setIsRecording(false);
-                return;
-            }
+            await audioContext.audioWorklet.addModule('audio-processor.js');
 
-            // This socket connects directly to Google's Speech-to-Text API
-            const socket = new WebSocket(googleWsUrl);
-            socketRef.current = socket;
-            
             socket.onopen = () => {
-                console.log('[Google] WebSocket opened successfully.');
+                console.log('[Proxy] WebSocket connection opened successfully.');
                 
-                // This is the configuration message sent to Google to initialize the stream.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -255,48 +225,34 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            // =================================================================
-                            // NOTE ON DIARIZATION (Speaker Separation):
-                            // To re-enable speaker diarization, you must use the 'diarization_config' object below.
-                            // This feature requires the 'v1p1beta1' endpoint.
-                            // If you uncomment this, you MUST change the `googleWsUrl` above back to use 'v1p1beta1'.
-                            // The old `diarization_speaker_count` field is deprecated and will cause errors.
-                            // =================================================================
-                            // diarization_config: {
-                            //   enable_speaker_diarization: true,
-                            //   min_speaker_count: 2,
-                            //   max_speaker_count: 2,
-                            // },
                         },
                         interim_results: true,
                     },
                 };
 
+                // Send the configuration message to our proxy, which will forward it to Google.
                 socket.send(JSON.stringify(configMessage));
                 setInterimTranscript("Listening...");
 
-                // Start processing audio from the microphone using the AudioWorklet
                 const source = audioContext.createMediaStreamSource(stream);
                 const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
                 audioWorkletNodeRef.current = workletNode;
 
-                // The worklet will send processed audio data back to this onmessage handler
                 workletNode.port.onmessage = (event) => {
-                    // Send the processed audio chunk over the WebSocket if it's open
                     if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(event.data);
+                        socket.send(event.data); // Send audio data to the proxy
                     }
                 };
 
-                // Connect the audio graph: Mic Source -> Worklet Processor -> Destination (optional, for monitoring)
                 source.connect(workletNode).connect(audioContext.destination);
             };
 
+            // This handler now receives messages forwarded from our proxy.
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.error) {
-                    console.error("[Google] Error message from upstream:", data.error);
-                    alert(`Google API Error: ${data.error.message}. Please check console.`);
+                    console.error("[Proxy] Error message received from backend:", data.error);
+                    alert(`API Error: ${data.error.message}.`);
                     stopTranscription();
                     return;
                 }
@@ -307,14 +263,10 @@ const DebatePage = ({ user }) => {
                         const transcript = result.alternatives[0].transcript;
                         
                         if (result.is_final) {
-                            setInterimTranscript(""); // Clear interim text
-                            
-                            // Since diarization is off, we use the manually selected speaker from the UI.
+                            setInterimTranscript("");
                             const identifiedSpeaker = activeSpeaker; 
-
                             console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
                             
-                            // Send final transcript to our Supabase backend for storage and analysis
                             supabase.functions.invoke('transcription-service', {
                                 body: {
                                     debate_id: liveDebate.id,
@@ -325,7 +277,6 @@ const DebatePage = ({ user }) => {
                             }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
                         
                         } else {
-                            // This is an interim result, update the live display
                             setInterimTranscript(transcript);
                         }
                     }
@@ -333,15 +284,15 @@ const DebatePage = ({ user }) => {
             };
             
             socket.onclose = (event) => {
-                console.log(`[Google] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
                 if (isRecording) {
-                    stopTranscription(); // Ensure cleanup happens if closed unexpectedly
+                    stopTranscription();
                 }
             };
 
             socket.onerror = (error) => {
-                console.error('[Google] WebSocket error:', error);
-                alert("A direct WebSocket error occurred with Google's service. See console for details.");
+                console.error('[Proxy] WebSocket error:', error);
+                alert("A WebSocket error occurred. See console for details.");
                 if (isRecording) {
                     stopTranscription();
                 }
@@ -354,7 +305,7 @@ const DebatePage = ({ user }) => {
             } else {
                 alert(`Error starting transcription: ${err.message}`);
             }
-            stopTranscription(); // Clean up on failure
+            stopTranscription();
         }
     };
 
@@ -364,26 +315,22 @@ const DebatePage = ({ user }) => {
         setIsRecording(false);
         setInterimTranscript('');
         
-        // Close the WebSocket connection if it exists and is open
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
             socketRef.current.close();
         }
         socketRef.current = null;
 
-        // Disconnect the audio worklet
         if (audioWorkletNodeRef.current) {
-            audioWorkletNodeRef.current.port.onmessage = null; // Remove listener
+            audioWorkletNodeRef.current.port.onmessage = null;
             audioWorkletNodeRef.current.disconnect();
             audioWorkletNodeRef.current = null;
         }
         
-        // Stop the microphone stream
         if (audioStreamRef.current) {
             audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
         }
 
-        // Close the AudioContext
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             await audioContextRef.current.close();
             audioContextRef.current = null;
@@ -442,9 +389,7 @@ const DebatePage = ({ user }) => {
         return liveFeedItems.filter(item => {
             if (item.speaker !== activeSpeaker) return false;
             if (selectedTopicId !== null && item.topic_id !== selectedTopicId) return false;
-            // Filter by card type
             if (activeFilter !== 'all' && item.card_type !== activeFilter) {
-                // Special case for fallacies
                 if (activeFilter === 'fallacy' && (item.card_type === 'logical-fallacy' || item.card_type === 'bad-faith-argument')) {
                     return true;
                 }
@@ -511,7 +456,7 @@ const DebatePage = ({ user }) => {
                          </p>
                      </div>
                     <p className="text-xs text-gray-500 text-center">
-                        Powered by Google Speech-to-Text.
+                        Speech-to-Text via Backend Proxy.
                     </p>
                 </div>
 

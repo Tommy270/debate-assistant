@@ -30,3 +30,5 @@ credentials.json
 generate-jwt.js
 
 get-speech-token
+
+speech-proxy

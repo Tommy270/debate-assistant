@@ -1,0 +1,11 @@
+
+{
+  "name": "speech-proxy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0",
+    "google-auth-library": "^9.0.0",
+    "ws": "^8.13.0"
+  }
+}
