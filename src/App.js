@@ -147,6 +147,7 @@
         const audioStreamRef = useRef(null);
         const isRecordingRef = useRef(false);
         const streamRestartTimerRef = useRef(null);
+        const retryTimeoutRef = useRef(null); // Ref for the retry timer
         
         const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
@@ -188,14 +189,136 @@
             return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
         }, [liveDebate]);
 
-        const startStream = async () => {
-            console.log('[Stream] Starting new transcription stream...');
-            setInterimTranscript("Initializing...");
-            try {
-                const PROXY_URL = 'wss://speechproxy-stnydi4weq-uw.a.run.app';
-                const socket = new WebSocket(PROXY_URL);
-                socketRef.current = socket;
+        const attemptConnection = (retries = 0) => {
+            const MAX_RETRIES = 5;
+            if (retries >= MAX_RETRIES) {
+                console.error("[FATAL] Max retries reached. Could not connect to WebSocket proxy.");
+                alert("Could not connect to the transcription service after multiple attempts. Please check your connection and try again.");
+                if (isRecordingRef.current) {
+                    toggleRecording(); // This will call stopStream and clean up
+                }
+                return;
+            }
 
+            console.log(`[Connect] Attempting to connect... (Attempt ${retries + 1})`);
+            setInterimTranscript(`Reconnecting... (Attempt ${retries + 1})`);
+
+            const PROXY_URL = 'wss://speechproxy-stnydi4weq-uw.a.run.app';
+            const socket = new WebSocket(PROXY_URL);
+            socketRef.current = socket;
+
+            socket.onopen = () => {
+                console.log('[Proxy] WebSocket connection opened successfully.');
+                const configMessage = {
+                    streaming_config: {
+                        config: {
+                            encoding: 'LINEAR16',
+                            sample_rate_hertz: 16000,
+                            language_code: 'en-US',
+                            enable_automatic_punctuation: true,
+                        },
+                        interim_results: true,
+                    },
+                };
+                socket.send(JSON.stringify(configMessage));
+                setInterimTranscript("Listening...");
+
+                const source = audioContextRef.current.createMediaStreamSource(audioStreamRef.current);
+                const workletNode = new AudioWorkletNode(audioContextRef.current, 'audio-processor');
+                audioWorkletNodeRef.current = workletNode;
+
+                workletNode.port.onmessage = (event) => {
+                    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                        socketRef.current.send(event.data);
+                    }
+                };
+                source.connect(workletNode).connect(audioContextRef.current.destination);
+            };
+
+            socket.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    console.error("[Proxy] Error message from backend:", data.error);
+                    alert(`API Error: ${data.error.message}. Stopping transcription.`);
+                    toggleRecording();
+                    return;
+                }
+                if (data.results && data.results.length > 0) {
+                    const result = data.results[0];
+                    if (result.alternatives && result.alternatives.length > 0) {
+                        const transcript = result.alternatives[0].transcript;
+                        if (result.is_final) {
+                            setInterimTranscript("");
+                            const finalTranscript = transcript.trim();
+                            if (!finalTranscript) return;
+                            
+                            console.log(`[FINAL] Speaker (${activeSpeaker}): "${finalTranscript}"`);
+                            const payload = {
+                                debate_id: liveDebate.id,
+                                speaker: activeSpeaker,
+                                transcript: finalTranscript,
+                                user_id: user.id,
+                            };
+
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (!session) {
+                                console.error("[AUTH] No active session found. Cannot invoke function.");
+                                alert("Your session has expired. Please log in again.");
+                                toggleRecording();
+                                return;
+                            }
+                            const { data: fnData, error: fnError } = await supabase.functions.invoke('transcription-service', {
+                                body: payload,
+                                headers: { 'Authorization': `Bearer ${session.accessToken}` }
+                            });
+                            if (fnError) {
+                                console.error('[DEBUG] Error invoking transcription-service:', fnError);
+                                alert(`Failed to process transcript. Check the developer console for details. Error: ${fnError.message}`);
+                            } else {
+                                console.log('[DEBUG] Successfully invoked transcription-service. Response:', fnData);
+                            }
+                        } else {
+                            setInterimTranscript(transcript);
+                        }
+                    }
+                }
+            };
+            
+            const handleConnectionError = () => {
+                if (isRecordingRef.current) {
+                    const delay = 1000 * Math.pow(2, retries); // Exponential backoff
+                    console.log(`[Connect] Connection failed. Retrying in ${delay}ms...`);
+                    retryTimeoutRef.current = setTimeout(() => {
+                        attemptConnection(retries + 1);
+                    }, delay);
+                }
+            };
+
+            socket.onclose = (event) => {
+                console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                // Code 1006 is an abnormal closure, often due to network issues or timeouts.
+                if (event.code === 1006) {
+                    handleConnectionError();
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error('[Proxy] WebSocket error:', error);
+                handleConnectionError();
+            };
+
+            streamRestartTimerRef.current = setTimeout(async () => {
+                if (isRecordingRef.current) {
+                    console.log('[Stream] Proactively restarting stream to avoid timeout...');
+                    await stopStream(false); // Don't clear audio resources
+                    attemptConnection(); // Reconnect
+                }
+            }, 55000);
+        };
+
+        const startStream = async () => {
+            console.log('[Stream] Initializing audio resources...');
+            try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioStreamRef.current = stream;
 
@@ -203,134 +326,24 @@
                 audioContextRef.current = audioContext;
                 
                 await audioContext.audioWorklet.addModule('audio-processor.js');
-
-                socket.onopen = () => {
-                    console.log('[Proxy] WebSocket connection opened successfully.');
-                    const configMessage = {
-                        streaming_config: {
-                            config: {
-                                encoding: 'LINEAR16',
-                                // FIX: Hardcode the sample rate to 16000, which is what our
-                                // audio-processor.js worklet is designed to output.
-                                // The browser's native sample rate (audioContext.sampleRate)
-                                // can vary, and this mismatch was likely causing the API error.
-                                sample_rate_hertz: 16000,
-                                language_code: 'en-US',
-                                enable_automatic_punctuation: true,
-                            },
-                            interim_results: true,
-                        },
-                    };
-                    socket.send(JSON.stringify(configMessage));
-                    setInterimTranscript("Listening...");
-
-                    const source = audioContext.createMediaStreamSource(stream);
-                    const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-                    audioWorkletNodeRef.current = workletNode;
-
-                    workletNode.port.onmessage = (event) => {
-                        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-                            socketRef.current.send(event.data);
-                        }
-                    };
-                    source.connect(workletNode).connect(audioContext.destination);
-                };
-
-                socket.onmessage = async (event) => { // Made this async
-                    const data = JSON.parse(event.data);
-                    if (data.error) {
-                        console.error("[Proxy] Error message from backend:", data.error);
-                        alert(`API Error: ${data.error.message}. Stopping transcription.`);
-                        toggleRecording();
-                        return;
-                    }
-                    if (data.results && data.results.length > 0) {
-                        const result = data.results[0];
-                        if (result.alternatives && result.alternatives.length > 0) {
-                            const transcript = result.alternatives[0].transcript;
-                            if (result.is_final) {
-                                setInterimTranscript("");
-                                const finalTranscript = transcript.trim();
-                                if (!finalTranscript) return;
-                                
-                                console.log(`[FINAL] Speaker (${activeSpeaker}): "${finalTranscript}"`);
-                                const payload = {
-                                    debate_id: liveDebate.id,
-                                    speaker: activeSpeaker,
-                                    transcript: finalTranscript,
-                                    user_id: user.id,
-                                };
-
-                                // --- START: MODIFIED SECTION ---
-                                console.log('[DEBUG] Attempting to invoke transcription-service...');
-                                
-                                // Get the latest session to ensure the token is fresh
-                                const { data: { session } } = await supabase.auth.getSession();
-                                
-                                if (!session) {
-                                    console.error("[AUTH] No active session found. Cannot invoke function.");
-                                    alert("Your session has expired. Please log in again.");
-                                    toggleRecording();
-                                    return;
-                                }
-
-                                const { data: fnData, error: fnError } = await supabase.functions.invoke('transcription-service', {
-                                    body: payload,
-                                    headers: {
-                                        // Explicitly set the Authorization header. This is crucial.
-                                        'Authorization': `Bearer ${session.accessToken}`
-                                    }
-                                });
-
-                                if (fnError) {
-                                    console.error('[DEBUG] Error invoking transcription-service:', fnError);
-                                    // Provide more specific feedback to the user
-                                    alert(`Failed to process transcript. Check the developer console for details. Error: ${fnError.message}`);
-                                } else {
-                                    console.log('[DEBUG] Successfully invoked transcription-service. Response:', fnData);
-                                }
-                                // --- END: MODIFIED SECTION ---
-
-                            } else {
-                                setInterimTranscript(transcript);
-                            }
-                        }
-                    }
-                };
                 
-                socket.onclose = (event) => {
-                    console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-                };
-
-                socket.onerror = (error) => {
-                    console.error('[Proxy] WebSocket error:', error);
-                    alert("A WebSocket error occurred. See console for details. Stopping transcription.");
-                    if (isRecordingRef.current) {
-                        toggleRecording();
-                    }
-                };
-
-                streamRestartTimerRef.current = setTimeout(async () => {
-                    if (isRecordingRef.current) {
-                        console.log('[Stream] Proactively restarting stream to avoid timeout...');
-                        await stopStream();
-                        await startStream();
-                    }
-                }, 55000);
+                // Now that audio is ready, start the connection process
+                attemptConnection();
 
             } catch (err) {
-                console.error('[FATAL] Error starting transcription stream:', err);
-                alert(`Error starting transcription: ${err.message}`);
+                console.error('[FATAL] Error getting user media:', err);
+                alert(`Could not get microphone access: ${err.message}`);
                 if (isRecordingRef.current) {
-                    toggleRecording();
+                    toggleRecording(); // Turn off the recording state
                 }
             }
         };
 
-        const stopStream = async () => {
+        const stopStream = async (cleanupAll = true) => {
             console.log("[Stream] Stopping current transcription stream...");
             
             clearTimeout(streamRestartTimerRef.current);
+            clearTimeout(retryTimeoutRef.current); // Clear any pending retries
 
             if (socketRef.current) {
                 if (socketRef.current.readyState === WebSocket.OPEN) {
@@ -342,13 +355,17 @@
                 audioWorkletNodeRef.current.disconnect();
                 audioWorkletNodeRef.current = null;
             }
-            if (audioStreamRef.current) {
-                audioStreamRef.current.getTracks().forEach(track => track.stop());
-                audioStreamRef.current = null;
-            }
-            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-                await audioContextRef.current.close();
-                audioContextRef.current = null;
+            
+            // Only clean up audio resources if it's a full stop, not a restart
+            if (cleanupAll) {
+                if (audioStreamRef.current) {
+                    audioStreamRef.current.getTracks().forEach(track => track.stop());
+                    audioStreamRef.current = null;
+                }
+                if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+                    await audioContextRef.current.close();
+                    audioContextRef.current = null;
+                }
             }
         };
         
@@ -362,7 +379,7 @@
                 await startStream();
             } else {
                 console.log("User stopped recording.");
-                await stopStream();
+                await stopStream(true); // Full cleanup
                 setInterimTranscript('');
             }
         };
