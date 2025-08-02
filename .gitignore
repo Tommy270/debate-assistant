@@ -24,3 +24,7 @@ yarn-error.log*
 
 # Ignore Supabase functions folder
 supabase
+
+credentials.json
+
+generate-jwt.js

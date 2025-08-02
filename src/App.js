@@ -18,7 +18,7 @@ class CustomEvent {
 // --- Icon Components ---
 const MicIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3a3 3 0 01-3 3z" /></svg>;
 const StopIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6" /></svg>;
-const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
+const BalanceIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3.52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-6.866-1.785m-2.875 0a5.988 5.988 0 01-6.866 1.785c-.483-.174-.711-.703-.59-1.202L9 4.971m-3.001-.47a48.417 48.417 0 00-3.001.52m3.001-.52L5.25 15.226c-.122.499.106 1.028.589 1.202a5.989 5.989 0 006.866-1.785m3.75 0a5.989 5.989 0 006.866 1.785c.483-.174-.711-.703.59-1.202L15 4.971m-4.5.472v.001" /></svg>;
 const ArrowUpIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
 const SparklesIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM18 13.5l.375 1.5L18 16.5l-.375-1.5-.375-1.5.375-1.5.375 1.5z" /></svg>;
 const ShieldCheckIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
@@ -229,8 +229,6 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Proxy] WebSocket opened.');
                 
-                // *** MODIFIED FOR DEBUGGING ***
-                // Using a simpler configuration to rule out advanced features as the cause of the error.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -238,9 +236,8 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            // Diarization is temporarily disabled for testing
-                            // enable_speaker_diarization: true, 
-                            // diarization_speaker_count: 2,
+                            enable_speaker_diarization: true,
+                            diarization_speaker_count: 2,
                         },
                         interim_results: true,
                     },
@@ -278,20 +275,26 @@ const DebatePage = ({ user }) => {
                         const transcript = result.alternatives[0].transcript;
                         if (result.is_final) {
                             setInterimTranscript(""); // Clear interim
-                            
-                            // Since diarization is off, we can't get speaker tags.
-                            // We will assign the active speaker manually.
-                            const identifiedSpeaker = activeSpeaker;
-                            console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
-                            
-                            supabase.functions.invoke('transcription-service', {
-                                body: {
-                                    debate_id: liveDebate.id,
-                                    speaker: identifiedSpeaker,
-                                    transcript: transcript.trim(),
-                                    user_id: user.id,
-                                },
-                            }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+                            const wordsInfo = result.alternatives[0].words;
+                            if (wordsInfo && wordsInfo.length > 0) {
+                                const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag;
+    
+                                if (!speakerTagMapRef.current[speakerTag]) {
+                                    speakerTagMapRef.current[speakerTag] = activeSpeaker;
+                                }
+                                const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
+    
+                                console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
+                                
+                                supabase.functions.invoke('transcription-service', {
+                                    body: {
+                                        debate_id: liveDebate.id,
+                                        speaker: identifiedSpeaker,
+                                        transcript: transcript.trim(),
+                                        user_id: user.id,
+                                    },
+                                }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+                            }
                         } else {
                             setInterimTranscript(transcript);
                         }
@@ -472,7 +475,7 @@ const DebatePage = ({ user }) => {
                          </p>
                      </div>
                     <p className="text-xs text-gray-500 text-center">
-                        Powered by Google Speech-to-Text.
+                        Powered by Google Speech-to-Text. Diarization is active.
                     </p>
                 </div>
 
