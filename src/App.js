@@ -210,16 +210,16 @@
             socket.onopen = () => {
                 console.log('[Proxy] WebSocket connection opened successfully.');
                 const configMessage = {
-                    streaming_config: {
-                        config: {
-                            encoding: 'LINEAR16',
-                            sample_rate_hertz: 16000,
-                            language_code: 'en-US',
-                            enable_automatic_punctuation: true,
-                        },
-                        interim_results: true,
-                    },
-                };
+                  streaming_config: {
+                      config: {
+                          encoding: 'LINEAR16',
+                          sampleRateHertz: 16000,
+                          languageCode: 'en-US',
+                          enableAutomaticPunctuation: true,
+                      },
+                      interimResults: true,
+                  },
+              };
                 socket.send(JSON.stringify(configMessage));
                 
                 // FIX: Introduce a small delay before starting the audio stream
