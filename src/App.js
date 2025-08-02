@@ -145,10 +145,8 @@ const DebatePage = ({ user }) => {
     // Refs for audio processing and WebSocket
     const socketRef = useRef(null);
     const audioContextRef = useRef(null);
-    // Ref for the AudioWorkletNode
     const audioWorkletNodeRef = useRef(null);
     const audioStreamRef = useRef(null);
-    const speakerTagMapRef = useRef({});
     
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
@@ -170,7 +168,7 @@ const DebatePage = ({ user }) => {
         const fetchInitialData = async () => {
             const { data: topicsData, error: topicsError } = await supabase.from('topics').select('*').eq('debate_id', liveDebate.id);
             if (topicsError) console.error('Error fetching topics:', topicsError); else setTopics(topicsData || []);
-            const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text').eq('debate_id', liveDebate.id).order('line_number');
+            const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text, speaker').eq('debate_id', liveDebate.id).order('line_number');
             if (transcriptError) console.error('Error fetching transcript lines:', transcriptError); else setTranscriptLines(transcriptData || []);
         };
         fetchInitialData();
@@ -179,7 +177,7 @@ const DebatePage = ({ user }) => {
             setLiveFeedItems(prevItems => {
                 const cardExists = prevItems.some(item => item.id === newCard.id);
                 if (cardExists) { return prevItems.map(item => item.id === newCard.id ? newCard : item); }
-                else { return [...prevItems, newCard]; }
+                else { return [...prevItems, newCard].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); }
             });
         };
         const analysisSubscription = supabase.channel(`analysis_cards_for_${liveDebate.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'analysis_cards', filter: `debate_id=eq.${liveDebate.id}` }, handleCardChange).subscribe();
@@ -190,26 +188,42 @@ const DebatePage = ({ user }) => {
         return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
     }, [liveDebate]);
 
-    // Rewritten startTranscription with AudioWorkletNode
     const startTranscription = async () => {
         if (isRecording) return;
         setIsRecording(true);
         setInterimTranscript("Initializing...");
 
         try {
-            // *** MODIFIED FOR NEW ARCHITECTURE ***
-            // Step 1: Fetch the access token from our new Supabase function.
-            console.log('[Auth] Fetching access token...');
-            const { data, error } = await supabase.functions.invoke('speech-to-text-websocket');
-            if (error || !data.access_token) {
-                throw new Error(`Failed to get access token: ${error?.message || 'No token returned'}`);
+            // =================================================================
+            // NEW: Call Google Cloud Function for Token
+            // =================================================================
+            // IMPORTANT: Replace this with the trigger URL from your GCF deployment
+            const GCF_TOKEN_URL = 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE';
+            
+            if (GCF_TOKEN_URL === 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE') {
+                alert("CRITICAL: You must replace 'YOUR_GOOGLE_CLOUD_FUNCTION_TRIGGER_URL_HERE' in App.js with your actual Google Cloud Function URL.");
+                setIsRecording(false);
+                return;
+            }
+
+            console.log('[Auth] Fetching access token from Google Cloud Function...');
+            const response = await fetch(GCF_TOKEN_URL, { method: 'POST' });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response from GCF' }));
+                throw new Error(`Failed to get access token from GCF: ${errorData.error || response.statusText}`);
+            }
+
+            const data = await response.json();
+            if (!data.access_token) {
+                throw new Error('Access token not found in the response from GCF.');
             }
             const { access_token } = data;
             console.log('[Auth] Successfully fetched access token.');
 
             // Step 2: Connect directly to Google's WebSocket URL with the token.
             const googleWsUrl = `wss://speech.googleapis.com/v1p1beta1/speech:streamingrecognize?access_token=${access_token}`;
-            console.log(`[Google] Connecting directly to WebSocket at: ${googleWsUrl}`);
+            console.log(`[Google] Connecting directly to WebSocket...`);
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioStreamRef.current = stream;
@@ -236,9 +250,9 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Google] WebSocket opened successfully.');
                 
-                // *** CHANGE: SIMPLIFIED CONFIGURATION FOR DEBUGGING ***
-                // We are temporarily removing speaker diarization to ensure the basic connection works.
-                // If this succeeds, the problem is with the diarization settings.
+                // =================================================================
+                // NEW: Simplified Speech API Configuration
+                // =================================================================
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -246,13 +260,17 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            // --- Temporarily Disabled ---
-                            // enable_speaker_diarization: true, 
-                            // diarization_speaker_count: 2,
+                            // --- DEBUGGING STEP ---
+                            // Speaker diarization is temporarily disabled to resolve the 400 error.
+                            // Once the basic connection works, you can try re-enabling this.
+                            // It's often the cause of handshake failures.
+                            // enable_speaker_diarization: true,
+                            // diarization_speaker_count: 2, // or min_speaker_count/max_speaker_count
                         },
                         interim_results: true,
                     },
                 };
+
                 socket.send(JSON.stringify(configMessage));
                 setInterimTranscript("Listening...");
 
@@ -283,13 +301,16 @@ const DebatePage = ({ user }) => {
                     const result = data.results[0];
                     if (result.alternatives && result.alternatives.length > 0) {
                         const transcript = result.alternatives[0].transcript;
+                        
                         if (result.is_final) {
                             setInterimTranscript(""); // Clear interim
                             
-                            // Since diarization is off, we assign the active speaker manually.
-                            const identifiedSpeaker = activeSpeaker;
+                            // Since diarization is off, we use the manually selected speaker.
+                            const identifiedSpeaker = activeSpeaker; 
+
                             console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
                             
+                            // Send final transcript to our backend for processing
                             supabase.functions.invoke('transcription-service', {
                                 body: {
                                     debate_id: liveDebate.id,
@@ -298,7 +319,7 @@ const DebatePage = ({ user }) => {
                                     user_id: user.id,
                                 },
                             }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
-                            
+                        
                         } else {
                             setInterimTranscript(transcript);
                         }
@@ -324,15 +345,14 @@ const DebatePage = ({ user }) => {
         } catch (err) {
             console.error('[FATAL] Error starting transcription:', err);
             if (err.name === 'NotAllowedError') {
-                 alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
+                alert('Microphone access was denied. Please allow microphone permissions in your browser settings.');
             } else {
-                 alert(`Error starting transcription: ${err.message}`);
+                alert(`Error starting transcription: ${err.message}`);
             }
-            stopTranscription(); 
+            stopTranscription();
         }
     };
 
-    // Rewritten stopTranscription to clean up AudioWorkletNode
     const stopTranscription = async () => {
         if (!isRecording && !audioContextRef.current) return;
         console.log("[INFO] Stopping transcription...");
@@ -359,8 +379,6 @@ const DebatePage = ({ user }) => {
             await audioContextRef.current.close();
             audioContextRef.current = null;
         }
-        
-        speakerTagMapRef.current = {};
     };
     
     const toggleRecording = () => {
@@ -415,6 +433,14 @@ const DebatePage = ({ user }) => {
         return liveFeedItems.filter(item => {
             if (item.speaker !== activeSpeaker) return false;
             if (selectedTopicId !== null && item.topic_id !== selectedTopicId) return false;
+            // Filter by card type
+            if (activeFilter !== 'all' && item.card_type !== activeFilter) {
+                // Special case for fallacies
+                if (activeFilter === 'fallacy' && (item.card_type === 'logical-fallacy' || item.card_type === 'bad-faith-argument')) {
+                    return true;
+                }
+                return false;
+            }
             return true;
         });
     };
@@ -496,10 +522,10 @@ const DebatePage = ({ user }) => {
                         <button onClick={() => setActiveSpeaker('user')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>My Analysis & Coaching</button>
                         <button onClick={() => setActiveSpeaker('opponent')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'opponent' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Opponent's Analysis</button>
                     </div>
-                     <p className="text-xs text-center text-gray-500 pt-1">Assign speaker before they talk.</p>
+                     <p className="text-xs text-center text-gray-500 pt-1">Assign speaker using the tabs above before they talk.</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
                         <FilterButton label="Full Feed" filter="all" active={activeFilter} setter={setActiveFilter} />
-                        <FilterButton label="Fact Checks" filter="fact-check" active={activeFilter} setter={setActiveFilter} />
+                        <FilterButton label="Fact Checks" filter="verifiable-claim" active={activeFilter} setter={setActiveFilter} />
                         <FilterButton label="Fallacies" filter="fallacy" active={activeFilter} setter={setActiveFilter} />
                         <FilterButton label="Evasions" filter="evasion" active={activeFilter} setter={setActiveFilter} />
                     </div>
@@ -511,13 +537,16 @@ const DebatePage = ({ user }) => {
                     </div>
                     <div className="mt-4 p-4 bg-white rounded-lg shadow-md overflow-y-auto h-1/3">
                         <h2 className="text-xl font-semibold mb-2">Live Transcript</h2>
-                        <div>{transcriptLines.map(line => (<div key={line.line_number} id={`line-${line.line_number}`} className="text-sm text-gray-700 mb-1"><span className="font-mono text-gray-500 mr-2">{line.line_number}:</span> {line.text}</div>))}</div>
+                        <div>{transcriptLines.map(line => (<div key={line.line_number} id={`line-${line.line_number}`} className="text-sm text-gray-700 mb-1"><span className={`font-bold mr-2 ${line.speaker === 'user' ? 'text-blue-600' : 'text-red-600'}`}>{line.speaker}:</span> {line.text}</div>))}</div>
                     </div>
                 </div>
             </div>
         </div>
     );
 };
+
+// Other components (SetupManagerPage, ProfilePage, etc.) remain unchanged for now.
+// I'm including them here for completeness of the file.
 
 const SetupManagerPage = ({ user }) => {
     const [setups, setSetups] = useState([]);
