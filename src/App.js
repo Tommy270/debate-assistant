@@ -1,6 +1,6 @@
 // src/App.js
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 
 // --- Icon Components (No Changes) ---
@@ -130,15 +130,16 @@ const DebatePage = ({ user }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [interimTranscript, setInterimTranscript] = useState('');
     
+    // Refs for audio and connection management
     const socketRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioWorkletNodeRef = useRef(null);
     const audioStreamRef = useRef(null);
-    const isRecordingRef = useRef(false);
     const retryTimeoutRef = useRef(null);
-    
+
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
 
+    // Fetch setups for the setup page
     useEffect(() => {
         if (pageState === 'setup') {
             const fetchSetups = async () => {
@@ -152,15 +153,20 @@ const DebatePage = ({ user }) => {
         }
     }, [pageState, user.id]);
 
+    // Subscribe to Supabase channels for live updates
     useEffect(() => {
         if (!liveDebate) return;
+
         const fetchInitialData = async () => {
             const { data: topicsData, error: topicsError } = await supabase.from('topics').select('*').eq('debate_id', liveDebate.id);
             if (topicsError) console.error('Error fetching topics:', topicsError); else setTopics(topicsData || []);
+            
             const { data: transcriptData, error: transcriptError } = await supabase.from('transcript_lines').select('line_number, text, speaker').eq('debate_id', liveDebate.id).order('line_number');
             if (transcriptError) console.error('Error fetching transcript lines:', transcriptError); else setTranscriptLines(transcriptData || []);
         };
+
         fetchInitialData();
+
         const handleCardChange = (payload) => {
             const newCard = payload.new;
             setLiveFeedItems(prevItems => {
@@ -169,34 +175,40 @@ const DebatePage = ({ user }) => {
                 else { return [...prevItems, newCard].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); }
             });
         };
+
         const analysisSubscription = supabase.channel(`analysis_cards_for_${liveDebate.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'analysis_cards', filter: `debate_id=eq.${liveDebate.id}` }, handleCardChange).subscribe();
         const topicSubscription = supabase.channel(`topics_for_${liveDebate.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'topics', filter: `debate_id=eq.${liveDebate.id}` }, fetchInitialData).subscribe();
         const transcriptSubscription = supabase.channel(`transcript_lines_for_${liveDebate.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transcript_lines', filter: `debate_id=eq.${liveDebate.id}` }, (payload) => {
             setTranscriptLines(currentLines => [...currentLines, payload.new].sort((a, b) => a.line_number - b.line_number));
         }).subscribe();
-        return () => { supabase.removeChannel(analysisSubscription); supabase.removeChannel(topicSubscription); supabase.removeChannel(transcriptSubscription); };
+
+        return () => {
+            supabase.removeChannel(analysisSubscription);
+            supabase.removeChannel(topicSubscription);
+            supabase.removeChannel(transcriptSubscription);
+        };
     }, [liveDebate]);
 
-    const attemptConnection = (retries = 0) => {
-        const MAX_RETRIES = 5;
-        if (retries >= MAX_RETRIES) {
+    // NEW: Robust connection and audio pipeline logic
+    const connectWebSocket = useCallback((retryCount = 0) => {
+        const MAX_RETRIES = 10;
+        if (retryCount >= MAX_RETRIES) {
             console.error("[FATAL] Max retries reached. Could not connect to WebSocket proxy.");
-            alert("Could not connect to the transcription service after multiple attempts. Please check your connection and try again.");
-            if (isRecordingRef.current) {
-                toggleRecording();
-            }
+            alert("Could not connect to the transcription service. Please check your connection and try again.");
+            setIsRecording(false); // This will trigger cleanup via useEffect
             return;
         }
 
-        console.log(`[Connect] Attempting to connect... (Attempt ${retries + 1})`);
-        setInterimTranscript(`Connecting... (Attempt ${retries + 1})`);
-
+        console.log(`[Connect] Attempting to connect... (Attempt ${retryCount + 1})`);
+        setInterimTranscript(`Connecting... (Attempt ${retryCount + 1})`);
+        
         const PROXY_URL = 'wss://debate-assist-467621.wl.r.appspot.com';
         const socket = new WebSocket(PROXY_URL);
         socketRef.current = socket;
 
         socket.onopen = () => {
             console.log('[Proxy] WebSocket connection opened successfully.');
+            setInterimTranscript("Listening...");
             const configMessage = {
                 streaming_config: {
                     config: {
@@ -209,32 +221,18 @@ const DebatePage = ({ user }) => {
                 },
             };
             socket.send(JSON.stringify(configMessage));
-            
-            setTimeout(() => {
-                if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-                
-                setInterimTranscript("Listening...");
-                const source = audioContextRef.current.createMediaStreamSource(audioStreamRef.current);
-                const workletNode = new AudioWorkletNode(audioContextRef.current, 'audio-processor');
-                audioWorkletNodeRef.current = workletNode;
-
-                workletNode.port.onmessage = (event) => {
-                    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-                        socketRef.current.send(event.data);
-                    }
-                };
-                source.connect(workletNode).connect(audioContextRef.current.destination);
-            }, 250);
         };
 
         socket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
             if (data.error) {
                 console.error("[Proxy] Error message from backend:", data.error);
-                alert(`API Error: ${data.error.message}. Stopping transcription.`);
-                toggleRecording();
+                alert(`API Error: ${data.error.message}. The connection may be unstable.`);
+                // The onclose event will handle the reconnection attempt.
+                socket.close();
                 return;
             }
+
             if (data.results && data.results.length > 0) {
                 const result = data.results[0];
                 if (result.alternatives && result.alternatives.length > 0) {
@@ -251,7 +249,7 @@ const DebatePage = ({ user }) => {
                             if (!session) {
                                 console.error("[AUTH] No active session found. Cannot invoke function.");
                                 alert("Your session has expired. Please log in again.");
-                                toggleRecording();
+                                setIsRecording(false); // Triggers cleanup
                                 return;
                             }
 
@@ -269,89 +267,96 @@ const DebatePage = ({ user }) => {
                             
                             if (fnError) {
                                 console.error('[Invoke Error] Supabase function invocation failed.', fnError);
-                                alert(`Failed to process transcript. See browser developer console for full error details. Message: ${fnError.message}`);
+                                alert(`Failed to process transcript. See browser developer console for details. Message: ${fnError.message}`);
                             } else {
                                 console.log('[Invoke Success] Successfully invoked transcription-service. Response:', fnData);
                             }
-
                         } catch (e) {
-                            console.error("[Invoke Catastrophe] An unexpected error occurred while trying to invoke the function:", e);
+                            console.error("[Invoke Catastrophe] An unexpected error occurred:", e);
                             alert("A critical error occurred. Could not send transcript for processing.");
                         }
-
                     } else {
                         setInterimTranscript(transcript);
                     }
                 }
             }
         };
-        
-        const handleConnectionError = () => {
-            if (isRecordingRef.current) {
-                const delay = 1000 * Math.pow(2, retries);
-                console.log(`[Connect] Connection failed. Retrying in ${delay}ms...`);
-                retryTimeoutRef.current = setTimeout(() => {
-                    attemptConnection(retries + 1);
-                }, delay);
-            }
-        };
 
         socket.onclose = (event) => {
             console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-            if (isRecordingRef.current) {
-                 handleConnectionError();
+            // If recording is still supposed to be active, it was an unexpected closure.
+            if (isRecording) {
+                const delay = 1000 * Math.pow(2, Math.min(retryCount, 4)); // Cap delay at 16s
+                console.log(`[Connect] Connection closed unexpectedly. Retrying in ${delay}ms...`);
+                clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = setTimeout(() => {
+                    connectWebSocket(retryCount + 1);
+                }, delay);
             }
         };
 
         socket.onerror = (error) => {
             console.error('[Proxy] WebSocket error:', error);
+            // onclose will be called next, which will handle the retry logic.
         };
-    };
+    }, [isRecording, activeSpeaker, liveDebate, user.id]);
 
-    const startStream = async () => {
+    const initializeAudio = useCallback(async () => {
+        if (audioContextRef.current) return; // Already initialized
+
         console.log('[Stream] Initializing audio resources...');
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-                sampleRate: 16000,
-                channelCount: 1,
-                noiseSuppression: true,
-                echoCancellation: true,
-            }});
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    noiseSuppression: true,
+                    echoCancellation: true,
+                }
+            });
             audioStreamRef.current = stream;
 
             const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             audioContextRef.current = audioContext;
-            
+
             await audioContext.audioWorklet.addModule('audio-processor.js');
-            
-            attemptConnection();
+
+            const source = audioContext.createMediaStreamSource(stream);
+            const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+            audioWorkletNodeRef.current = workletNode;
+
+            workletNode.port.onmessage = (event) => {
+                if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                    socketRef.current.send(event.data);
+                }
+            };
+            source.connect(workletNode).connect(audioContext.destination);
+            console.log('[Stream] Audio pipeline is ready.');
 
         } catch (err) {
-            console.error('[FATAL] Error getting user media:', err);
+            console.error('[FATAL] Error initializing audio:', err);
             alert(`Could not get microphone access: ${err.message}`);
-            if (isRecordingRef.current) {
-                toggleRecording();
-            }
+            setIsRecording(false); // This will trigger cleanup
         }
-    };
+    }, []);
 
-    const stopStream = async () => {
-        console.log("[Stream] Stopping current transcription stream...");
+    const cleanupAudioAndSocket = useCallback(async () => {
+        console.log("[Stream] Cleaning up all audio and socket resources...");
         
         clearTimeout(retryTimeoutRef.current);
 
         if (socketRef.current) {
-            socketRef.current.onclose = null; 
+            socketRef.current.onclose = null; // prevent further retries
             if (socketRef.current.readyState === WebSocket.OPEN) {
                 socketRef.current.close(1000, "User stopped recording");
             }
             socketRef.current = null;
         }
         if (audioWorkletNodeRef.current) {
+            audioWorkletNodeRef.current.port.onmessage = null;
             audioWorkletNodeRef.current.disconnect();
             audioWorkletNodeRef.current = null;
         }
-        
         if (audioStreamRef.current) {
             audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
@@ -360,21 +365,30 @@ const DebatePage = ({ user }) => {
             await audioContextRef.current.close();
             audioContextRef.current = null;
         }
-    };
-    
-    const toggleRecording = async () => {
-        const nextIsRecording = !isRecording;
-        setIsRecording(nextIsRecording);
-        isRecordingRef.current = nextIsRecording;
+        setInterimTranscript('');
+        console.log("[Stream] Cleanup complete.");
+    }, []);
 
-        if (nextIsRecording) {
-            console.log("User started recording.");
-            await startStream();
+    useEffect(() => {
+        if (isRecording) {
+            initializeAudio().then(() => {
+                // Only connect if audio was initialized successfully
+                if (audioContextRef.current) {
+                    connectWebSocket();
+                }
+            });
         } else {
-            console.log("User stopped recording.");
-            await stopStream();
-            setInterimTranscript('');
+            cleanupAudioAndSocket();
         }
+
+        // Final cleanup when component unmounts
+        return () => {
+            cleanupAudioAndSocket();
+        };
+    }, [isRecording, initializeAudio, connectWebSocket, cleanupAudioAndSocket]);
+
+    const toggleRecording = () => {
+        setIsRecording(prev => !prev);
     };
 
     const handleStartDebate = async () => {
@@ -402,7 +416,7 @@ const DebatePage = ({ user }) => {
 
     const handleStopDebate = async () => {
         if (isRecording) {
-            await toggleRecording();
+            setIsRecording(false); // This will trigger the cleanup effect
         }
         setPageState('setup');
         setLiveDebate(null);
