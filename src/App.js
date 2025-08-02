@@ -236,6 +236,9 @@ const DebatePage = ({ user }) => {
             socket.onopen = () => {
                 console.log('[Google] WebSocket opened successfully.');
                 
+                // *** CHANGE: SIMPLIFIED CONFIGURATION FOR DEBUGGING ***
+                // We are temporarily removing speaker diarization to ensure the basic connection works.
+                // If this succeeds, the problem is with the diarization settings.
                 const configMessage = {
                     streaming_config: {
                         config: {
@@ -243,8 +246,9 @@ const DebatePage = ({ user }) => {
                             sample_rate_hertz: sampleRate,
                             language_code: 'en-US',
                             enable_automatic_punctuation: true,
-                            enable_speaker_diarization: true,
-                            diarization_speaker_count: 2,
+                            // --- Temporarily Disabled ---
+                            // enable_speaker_diarization: true, 
+                            // diarization_speaker_count: 2,
                         },
                         interim_results: true,
                     },
@@ -281,26 +285,20 @@ const DebatePage = ({ user }) => {
                         const transcript = result.alternatives[0].transcript;
                         if (result.is_final) {
                             setInterimTranscript(""); // Clear interim
-                            const wordsInfo = result.alternatives[0].words;
-                            if (wordsInfo && wordsInfo.length > 0) {
-                                const speakerTag = wordsInfo[wordsInfo.length - 1].speaker_tag;
-    
-                                if (!speakerTagMapRef.current[speakerTag]) {
-                                    speakerTagMapRef.current[speakerTag] = activeSpeaker;
-                                }
-                                const identifiedSpeaker = speakerTagMapRef.current[speakerTag];
-    
-                                console.log(`[FINAL] Speaker ${speakerTag} (${identifiedSpeaker}): "${transcript}"`);
-                                
-                                supabase.functions.invoke('transcription-service', {
-                                    body: {
-                                        debate_id: liveDebate.id,
-                                        speaker: identifiedSpeaker,
-                                        transcript: transcript.trim(),
-                                        user_id: user.id,
-                                    },
-                                }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
-                            }
+                            
+                            // Since diarization is off, we assign the active speaker manually.
+                            const identifiedSpeaker = activeSpeaker;
+                            console.log(`[FINAL] Speaker (${identifiedSpeaker}): "${transcript}"`);
+                            
+                            supabase.functions.invoke('transcription-service', {
+                                body: {
+                                    debate_id: liveDebate.id,
+                                    speaker: identifiedSpeaker,
+                                    transcript: transcript.trim(),
+                                    user_id: user.id,
+                                },
+                            }).catch((err) => console.error('[DEBUG] Error invoking transcription-service:', err));
+                            
                         } else {
                             setInterimTranscript(transcript);
                         }
@@ -478,7 +476,7 @@ const DebatePage = ({ user }) => {
                          </p>
                      </div>
                     <p className="text-xs text-gray-500 text-center">
-                        Powered by Google Speech-to-Text. Diarization is active.
+                        Powered by Google Speech-to-Text.
                     </p>
                 </div>
 
@@ -498,7 +496,7 @@ const DebatePage = ({ user }) => {
                         <button onClick={() => setActiveSpeaker('user')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>My Analysis & Coaching</button>
                         <button onClick={() => setActiveSpeaker('opponent')} className={`flex-1 py-2 text-center font-semibold ${activeSpeaker === 'opponent' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Opponent's Analysis</button>
                     </div>
-                     <p className="text-xs text-center text-gray-500 pt-1">Assign speaker before they talk. The first utterance maps the speaker.</p>
+                     <p className="text-xs text-center text-gray-500 pt-1">Assign speaker before they talk.</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
                         <FilterButton label="Full Feed" filter="all" active={activeFilter} setter={setActiveFilter} />
                         <FilterButton label="Fact Checks" filter="fact-check" active={activeFilter} setter={setActiveFilter} />
