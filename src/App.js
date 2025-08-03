@@ -133,8 +133,9 @@ const DebatePage = ({ user }) => {
     // Refs for audio and connection management
     const socketRef = useRef(null);
     const audioContextRef = useRef(null);
-    const audioWorkletNodeRef = useRef(null);
     const audioStreamRef = useRef(null);
+    const audioSourceNodeRef = useRef(null); // To hold the source node
+    const audioWorkletNodeRef = useRef(null);
     const retryTimeoutRef = useRef(null);
 
     const quickStartSetup = { id: 'quick_start', name: 'Quick Start', general_instructions: 'Listen for common logical fallacies and unsupported claims.', sources: [] };
@@ -189,13 +190,12 @@ const DebatePage = ({ user }) => {
         };
     }, [liveDebate]);
 
-    // NEW: Robust connection and audio pipeline logic
     const connectWebSocket = useCallback((retryCount = 0) => {
         const MAX_RETRIES = 10;
         if (retryCount >= MAX_RETRIES) {
             console.error("[FATAL] Max retries reached. Could not connect to WebSocket proxy.");
             alert("Could not connect to the transcription service. Please check your connection and try again.");
-            setIsRecording(false); // This will trigger cleanup via useEffect
+            setIsRecording(false);
             return;
         }
 
@@ -221,6 +221,12 @@ const DebatePage = ({ user }) => {
                 },
             };
             socket.send(JSON.stringify(configMessage));
+            
+            // **FIX**: Connect the audio pipeline only AFTER the socket is open and configured.
+            if (audioSourceNodeRef.current && audioWorkletNodeRef.current && audioContextRef.current) {
+                console.log('[Stream] Connecting audio pipeline now.');
+                audioSourceNodeRef.current.connect(audioWorkletNodeRef.current).connect(audioContextRef.current.destination);
+            }
         };
 
         socket.onmessage = async (event) => {
@@ -228,7 +234,6 @@ const DebatePage = ({ user }) => {
             if (data.error) {
                 console.error("[Proxy] Error message from backend:", data.error);
                 alert(`API Error: ${data.error.message}. The connection may be unstable.`);
-                // The onclose event will handle the reconnection attempt.
                 socket.close();
                 return;
             }
@@ -249,7 +254,7 @@ const DebatePage = ({ user }) => {
                             if (!session) {
                                 console.error("[AUTH] No active session found. Cannot invoke function.");
                                 alert("Your session has expired. Please log in again.");
-                                setIsRecording(false); // Triggers cleanup
+                                setIsRecording(false);
                                 return;
                             }
 
@@ -284,9 +289,8 @@ const DebatePage = ({ user }) => {
 
         socket.onclose = (event) => {
             console.log(`[Proxy] WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-            // If recording is still supposed to be active, it was an unexpected closure.
             if (isRecording) {
-                const delay = 1000 * Math.pow(2, Math.min(retryCount, 4)); // Cap delay at 16s
+                const delay = 1000 * Math.pow(2, Math.min(retryCount, 4));
                 console.log(`[Connect] Connection closed unexpectedly. Retrying in ${delay}ms...`);
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = setTimeout(() => {
@@ -297,12 +301,11 @@ const DebatePage = ({ user }) => {
 
         socket.onerror = (error) => {
             console.error('[Proxy] WebSocket error:', error);
-            // onclose will be called next, which will handle the retry logic.
         };
     }, [isRecording, activeSpeaker, liveDebate, user.id]);
 
     const initializeAudio = useCallback(async () => {
-        if (audioContextRef.current) return; // Already initialized
+        if (audioContextRef.current) return;
 
         console.log('[Stream] Initializing audio resources...');
         try {
@@ -321,22 +324,24 @@ const DebatePage = ({ user }) => {
 
             await audioContext.audioWorklet.addModule('audio-processor.js');
 
-            const source = audioContext.createMediaStreamSource(stream);
-            const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-            audioWorkletNodeRef.current = workletNode;
+            // **FIX**: Create nodes but do not connect them yet.
+            audioSourceNodeRef.current = audioContext.createMediaStreamSource(stream);
+            audioWorkletNodeRef.current = new AudioWorkletNode(audioContext, 'audio-processor');
 
-            workletNode.port.onmessage = (event) => {
+            audioWorkletNodeRef.current.port.onmessage = (event) => {
                 if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
                     socketRef.current.send(event.data);
                 }
             };
-            source.connect(workletNode).connect(audioContext.destination);
-            console.log('[Stream] Audio pipeline is ready.');
+            
+            console.log('[Stream] Audio resources are ready.');
+            return true; // Indicate success
 
         } catch (err) {
             console.error('[FATAL] Error initializing audio:', err);
             alert(`Could not get microphone access: ${err.message}`);
-            setIsRecording(false); // This will trigger cleanup
+            setIsRecording(false);
+            return false; // Indicate failure
         }
     }, []);
 
@@ -346,11 +351,17 @@ const DebatePage = ({ user }) => {
         clearTimeout(retryTimeoutRef.current);
 
         if (socketRef.current) {
-            socketRef.current.onclose = null; // prevent further retries
+            socketRef.current.onclose = null;
             if (socketRef.current.readyState === WebSocket.OPEN) {
                 socketRef.current.close(1000, "User stopped recording");
             }
             socketRef.current = null;
+        }
+
+        // **FIX**: Disconnect source node if it exists
+        if (audioSourceNodeRef.current) {
+            audioSourceNodeRef.current.disconnect();
+            audioSourceNodeRef.current = null;
         }
         if (audioWorkletNodeRef.current) {
             audioWorkletNodeRef.current.port.onmessage = null;
@@ -371,9 +382,8 @@ const DebatePage = ({ user }) => {
 
     useEffect(() => {
         if (isRecording) {
-            initializeAudio().then(() => {
-                // Only connect if audio was initialized successfully
-                if (audioContextRef.current) {
+            initializeAudio().then((success) => {
+                if (success) {
                     connectWebSocket();
                 }
             });
@@ -381,7 +391,6 @@ const DebatePage = ({ user }) => {
             cleanupAudioAndSocket();
         }
 
-        // Final cleanup when component unmounts
         return () => {
             cleanupAudioAndSocket();
         };
@@ -416,7 +425,7 @@ const DebatePage = ({ user }) => {
 
     const handleStopDebate = async () => {
         if (isRecording) {
-            setIsRecording(false); // This will trigger the cleanup effect
+            setIsRecording(false);
         }
         setPageState('setup');
         setLiveDebate(null);

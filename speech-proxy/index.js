@@ -1,4 +1,5 @@
 // speech-proxy/index.js
+
 const http = require('http');
 const WebSocket = require('ws');
 const { SpeechClient } = require('@google-cloud/speech');
@@ -62,7 +63,6 @@ wss.on('connection', (clientWs) => {
                             console.error('[Google] Error from recognizeStream:', error.message);
                             if (clientWs.readyState === WebSocket.OPEN) {
                                 clientWs.send(JSON.stringify({ error: { message: `Google Speech API Error: ${error.message}` } }));
-                                // Don't close the client's connection; let the client decide how to handle it.
                             }
                         })
                         .on('data', (data) => {
